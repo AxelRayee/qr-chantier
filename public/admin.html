@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="color-scheme" content="light">
+<link rel="icon" href="/logo.png">
+<title>Admin chantiers</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f6f4;--card:#fff;--ink:#1e1e1c;--mut:#85857f;--acc:#1e1e1c;--line:#e8e8e4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 Poppins,system-ui,sans-serif}
+.w{max-width:900px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0}
+h1{font-size:1.3rem;margin:0}h2{font-size:1.05rem;margin:0 0 10px}
+input,select,textarea,button{font:inherit;padding:9px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);width:100%}
+button{cursor:pointer;width:auto;font-weight:600}
+button.p{background:var(--acc);border-color:var(--acc);color:#fff}
+button.d{color:#c92a2a}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}
+label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:2px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sp{justify-content:space-between}
+.iv{border-top:1px solid var(--line);padding:10px 0}
+.iv:first-child{border-top:0}
+.mut{color:var(--mut)}
+.err{color:#c92a2a;min-height:1.2em}
+#qr img{width:200px;height:200px;image-rendering:pixelated;background:#fff;padding:8px;border-radius:8px}
+.hide{display:none}
+</style></head>
+<body><div class="w">
+
+<div id="loginV" class="card" style="max-width:360px;margin:60px auto">
+  <h2>Connexion</h2>
+  <label>Identifiant</label><input id="u" autocomplete="username">
+  <label style="margin-top:8px">Mot de passe</label><input id="p" type="password" autocomplete="current-password">
+  <div class="row" style="margin-top:12px"><button class="p" onclick="doLogin()">Se connecter</button></div>
+  <div class="err" id="lerr"></div>
+</div>
+
+<div id="appV" class="hide">
+  <div class="row sp"><h1>Chantiers</h1><button onclick="logout()">Déconnexion</button></div>
+
+  <div class="card">
+    <div class="row">
+      <select id="chSel" onchange="selectCh()" style="flex:1"></select>
+      <button id="newChBtn" class="hide" onclick="newCh()">+ Nouveau chantier</button>
+    </div>
+  </div>
+
+  <div id="chForm" class="card hide">
+    <h2>Fiche chantier</h2>
+    <div class="g">
+      <div><label>Slug (URL) *</label><input id="c_slug" placeholder="clinique-du-parc"></div>
+      <div><label>Nom du projet</label><input id="c_nom"></div>
+      <div><label>Surface</label><input id="c_surf" placeholder="9 981 m² SDP"></div>
+      <div><label>Usage</label><input id="c_usage" placeholder="Établissement de santé"></div>
+      <div><label>Adresse</label><input id="c_adr"></div>
+      <div><label>URL de l'image (https://…)</label><input id="c_img"></div>
+      <div><label>Début des travaux</label><input id="c_deb" type="date"></div>
+      <div><label>Fin prévisionnelle</label><input id="c_fin" type="date"></div>
+      <div><label>Lien « Rejoindre le projet »</label><input id="c_join" placeholder="optionnel"></div>
+      <div><label>Actif</label><select id="c_act"><option value="1">Oui</option><option value="0">Non</option></select></div>
+    </div>
+    <label style="margin-top:8px">Description (un paragraphe par ligne)</label><textarea id="c_desc" rows="4"></textarea>
+    <label style="margin-top:8px">Horaires</label><textarea id="c_hor" rows="2" placeholder="Lundi au vendredi : 08h00 - 17h00"></textarea>
+    <div class="row" style="margin-top:10px"><button class="p" onclick="saveCh()">Enregistrer le chantier</button></div>
+  </div>
+
+  <div id="qrCard" class="card hide">
+    <h2>QR code du panneau</h2>
+    <div class="row" style="gap:16px">
+      <div id="qr"></div>
+      <div>
+        <div class="mut" id="qrUrl" style="word-break:break-all"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="p" onclick="dlAffiche()">Télécharger l'affiche (PNG)</button>
+          <button onclick="dlQr()">QR seul (PNG)</button>
+        </div>
+        <div class="mut" style="margin-top:8px;font-size:.8rem">L'affiche est en 1414×2000 px : à imprimer en A4/A3 sur le panneau.</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ivCard" class="card hide">
+    <div class="row sp"><h2>Intervenants</h2><button class="p" onclick="editIv()">+ Ajouter</button></div>
+    <div id="ivList"></div>
+  </div>
+
+  <div id="ivForm" class="card hide">
+    <h2 id="ivTitle">Intervenant</h2>
+    <div class="g">
+      <div><label>Entreprise *</label><input id="i_ent"></div>
+      <div><label>Groupe / section</label><input id="i_grp" list="grps" placeholder="Maître d'ouvrage, Lot 3 - Gros-œuvre…"></div>
+      <div><label>Rôle</label><input id="i_role" placeholder="Mandataire, co-traitant…"></div>
+      <div><label>Adresse</label><input id="i_adr"></div>
+      <div><label>Téléphone</label><input id="i_tel" type="tel"></div>
+      <div><label>E-mail (optionnel)</label><input id="i_mail" type="email"></div>
+      <div><label>Site web (https://…)</label><input id="i_web"></div>
+      <div><label>Logo (URL https://…)</label><input id="i_logo"></div>
+      <div><label>Ordre d'affichage</label><input id="i_ordre" type="number"></div>
+    </div>
+    <datalist id="grps"></datalist>
+    <div class="row" style="margin-top:10px"><button class="p" onclick="saveIv()">Enregistrer</button><button onclick="cancelIv()">Annuler</button></div>
+  </div>
+  <div class="err" id="err"></div>
+</div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+let S = JSON.parse(sessionStorage.getItem("s") || "null"), chantiers = [], cur = null, ivs = [], editId = null;
+
+async function api(body) {
+  const r = await fetch("/.netlify/functions/admin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(S ? { Authorization: "Bearer " + S.token } : {}) },
+    body: JSON.stringify(body),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401 && body.action !== "login") { logout(); throw new Error("Session expirée"); }
+  if (!r.ok) throw new Error(d.error || "Erreur");
+  return d;
+}
+const show = (id, v) => $(id).classList.toggle("hide", !v);
+const err = (m) => ($("err").textContent = m || "");
+
+async function doLogin() {
+  try {
+    S = await api({ action: "login", user: $("u").value, pass: $("p").value });
+    sessionStorage.setItem("s", JSON.stringify(S));
+    start();
+  } catch (e) { $("lerr").textContent = e.message; }
+}
+function logout() { sessionStorage.removeItem("s"); S = null; show("appV", false); show("loginV", true); }
+
+async function start() {
+  show("loginV", false); show("appV", true);
+  show("newChBtn", S.role === "admin");
+  await loadChantiers();
+}
+async function loadChantiers(keep) {
+  try {
+    chantiers = await api({ action: "listChantiers" });
+    $("chSel").innerHTML = '<option value="">— choisir un chantier —</option>' +
+      chantiers.map((c) => `<option value="${esc(c.Slug)}">${esc(c.Nom || c.Slug)}</option>`).join("");
+    if (keep) $("chSel").value = keep;
+    selectCh();
+  } catch (e) { err(e.message); }
+}
+function selectCh() {
+  const slug = $("chSel").value;
+  cur = chantiers.find((c) => c.Slug === slug) || null;
+  show("chForm", !!cur && S.role === "admin"); show("qrCard", !!cur); show("ivCard", !!cur); show("ivForm", false);
+  if (!cur) return;
+  fillCh(cur); drawQr(); loadIv();
+}
+function fillCh(c) {
+  const m = { c_slug: "Slug", c_nom: "Nom", c_surf: "Surface", c_usage: "Usage", c_adr: "Adresse", c_img: "ImageUrl",
+    c_deb: "DateDebut", c_fin: "DateFin", c_join: "LienRejoindre", c_desc: "Description", c_hor: "Horaires" };
+  for (const k in m) $(k).value = c[m[k]] || "";
+  $("c_act").value = c.Actif ? "1" : "0";
+}
+function newCh() {
+  cur = { id: null }; $("chSel").value = ""; fillCh({ Actif: true });
+  show("chForm", true); show("qrCard", false); show("ivCard", false); show("ivForm", false);
+}
+async function saveCh() {
+  err();
+  try {
+    const out = await api({
+      action: "saveChantier", id: cur && cur.id, slug: $("c_slug").value.trim().toLowerCase(), nom: $("c_nom").value,
+      surface: $("c_surf").value, usage: $("c_usage").value, adresse: $("c_adr").value, imageUrl: $("c_img").value,
+      dateDebut: $("c_deb").value, dateFin: $("c_fin").value, lienRejoindre: $("c_join").value,
+      description: $("c_desc").value, horaires: $("c_hor").value, actif: $("c_act").value === "1",
+    });
+    await loadChantiers(out.fields.Slug);
+  } catch (e) { err(e.message); }
+}
+
+// ---------- QR + affiche ----------
+function chUrl() { return location.origin + "/c/" + cur.Slug; }
+function qrMatrix() { const q = qrcode(0, "H"); q.addData(chUrl()); q.make(); return q; }
+function drawQr() { $("qr").innerHTML = qrMatrix().createImgTag(8, 8); $("qrUrl").textContent = chUrl(); }
+function drawQrOn(ctx, x, y, size) {
+  const q = qrMatrix(), n = q.getModuleCount(), m = size / n;
+  ctx.fillStyle = "#000";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) ctx.fillRect(x + c * m, y + r * m, Math.ceil(m), Math.ceil(m));
+}
+function save(canvas, name) { const a = document.createElement("a"); a.download = name; a.href = canvas.toDataURL("image/png"); a.click(); }
+function dlQr() {
+  const c = document.createElement("canvas"); c.width = c.height = 1000; const x = c.getContext("2d");
+  x.fillStyle = "#fff"; x.fillRect(0, 0, 1000, 1000); drawQrOn(x, 60, 60, 880); save(c, "qr-" + cur.Slug + ".png");
+}
+async function dlAffiche() {
+  await document.fonts.load("700 80px Poppins"); await document.fonts.load("400 80px Poppins");
+  const W = 1414, H = 2000, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  x.fillStyle = "#fff"; x.fillRect(0, 0, W, H); x.textAlign = "center"; x.textBaseline = "alphabetic";
+  const P = "#1e1e1c", K = "#6b6b66";
+  const line = (parts, y, size) => { // parts: [[texte, bold, couleur]]
+    const f = (b) => `${b ? 700 : 400} ${size}px Poppins, system-ui, sans-serif`;
+    let w = 0; parts.forEach(([t, b]) => { x.font = f(b); w += x.measureText(t + " ").width; });
+    let px = (W - w) / 2; x.textAlign = "left";
+    parts.forEach(([t, b, col]) => { x.font = f(b); x.fillStyle = col; x.fillText(t, px, y); px += x.measureText(t + " ").width; });
+  };
+  line([["Scannez-moi", 1, P], ["pour découvrir", 0, K]], 160, 100);
+  line([["les", 0, K], ["intervenants du chantier", 1, P]], 280, 100);
+  const S0 = 1240, X0 = (W - S0) / 2, Y0 = 360;
+  drawQrOn(x, X0, Y0, S0);
+  // cartouche central blanc (le QR est en correction H : 20 % max masquable)
+  const logo = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = "/logo.png"; });
+  x.fillStyle = "#fff"; const cw = 340; x.fillRect(W / 2 - cw / 2, Y0 + S0 / 2 - cw / 2, cw, cw);
+  const lw = 280; x.drawImage(logo, W / 2 - lw / 2, Y0 + S0 / 2 - lw / 2, lw, lw);
+  line([["Le panneau de chantier", 0, K]], 1830, 88);
+  line([["CONNECTÉ", 1, P]], 1940, 100);
+  save(c, "affiche-qr-" + cur.Slug + ".png");
+}
+
+// ---------- Intervenants ----------
+async function loadIv() {
+  try {
+    ivs = await api({ action: "listIntervenants", slug: cur.Slug });
+    $("grps").innerHTML = [...new Set(ivs.map((x) => x.Groupe).filter(Boolean))].map((g) => `<option value="${esc(g)}">`).join("");
+    $("ivList").innerHTML = ivs.map((x, i) => `
+      <div class="iv row sp"><div><b>${esc(x.Entreprise)}</b> <span class="mut">· ${esc(x.Groupe || "")}</span><br>
+      <span class="mut">${esc([x.Role, x.Adresse, x.Telephone].filter(Boolean).join(" · "))}</span></div>
+      <div class="row"><button onclick="editIv(${i})">Modifier</button><button class="d" onclick="delIv(${i})">Supprimer</button></div></div>`).join("") ||
+      '<div class="mut">Aucun intervenant.</div>';
+  } catch (e) { err(e.message); }
+}
+function editIv(i) {
+  const x = i === undefined ? {} : ivs[i]; editId = x.id || null;
+  $("ivTitle").textContent = editId ? "Modifier l'intervenant" : "Nouvel intervenant";
+  const m = { i_ent: "Entreprise", i_grp: "Groupe", i_role: "Role", i_adr: "Adresse", i_tel: "Telephone", i_mail: "Email", i_web: "SiteWeb", i_logo: "LogoUrl" };
+  for (const k in m) $(k).value = x[m[k]] || "";
+  $("i_ordre").value = x.Ordre ?? (ivs.length + 1) * 10;
+  show("ivForm", true); $("ivForm").scrollIntoView({ behavior: "smooth" });
+}
+function cancelIv() { show("ivForm", false); }
+async function saveIv() {
+  err();
+  try {
+    await api({
+      action: "saveIntervenant", id: editId, slug: cur.Slug, entreprise: $("i_ent").value, groupe: $("i_grp").value,
+      role: $("i_role").value, adresse: $("i_adr").value, telephone: $("i_tel").value, email: $("i_mail").value,
+      siteWeb: $("i_web").value, logo: $("i_logo").value, ordre: $("i_ordre").value,
+    });
+    show("ivForm", false); loadIv();
+  } catch (e) { err(e.message); }
+}
+async function delIv(i) {
+  if (!confirm("Supprimer " + ivs[i].Entreprise + " ?")) return;
+  try { await api({ action: "deleteIntervenant", id: ivs[i].id }); loadIv(); } catch (e) { err(e.message); }
+}
+
+if (S) start();
+</script>
+</body></html>
