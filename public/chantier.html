@@ -4,48 +4,57 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="color-scheme" content="light">
-<link rel="icon" href="/logo.png">
+<meta name="theme-color" content="#7b1e2b">
 <title>Chantier</title>
+<link rel="icon" href="/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#fff;--ink:#1e1e1c;--txt:#444441;--mut:#85857f;--acc:#1e1e1c;--soft:#f6f6f4;--line:#e8e8e4}
-.brand{display:flex;align-items:center;gap:10px}
-.brand img{width:34px;height:34px;border-radius:6px;flex:none}
+:root{--bx:#7b1e2b;--bx2:#58121d;--tint:#f8eeef;--bg:#fbf8f8;--card:#fff;--ink:#2a1a1c;--txt:#4a3d3f;--mut:#8a7478;--line:#ecdde0}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.55 Poppins,system-ui,sans-serif}
 .w{max-width:760px;margin:0 auto;padding:0 18px}
-.top{background:var(--soft);border-bottom:1px solid var(--line);padding:10px 0;font-size:.8rem;color:var(--mut)}
-.top b{color:var(--acc)}
-h1{color:var(--acc);font-size:1.6rem;line-height:1.25;margin:22px 0 14px;text-transform:uppercase}
-h2{color:var(--acc);font-size:1.05rem;margin:28px 0 8px}
+header{background:linear-gradient(135deg,var(--bx) 0%,var(--bx2) 100%);color:#fff;padding:16px 0 64px}
+.brand{display:flex;align-items:center;gap:12px;font-size:.85rem;letter-spacing:.02em;opacity:.95}
+.brand img{width:42px;height:42px;flex:none}
+.brand b{font-weight:600}
+h1{margin:26px 0 0;font-size:1.65rem;line-height:1.22;text-transform:uppercase;letter-spacing:.01em}
+main{margin-top:-40px;padding-bottom:20px}
 .fiche{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
-.fiche div{background:var(--soft);border-radius:12px;padding:10px 12px}
-.fiche small{display:block;color:var(--mut);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
-.fiche span{color:var(--ink);font-weight:600;font-size:.95rem}
-.hero{width:100%;border-radius:14px;display:block;margin:6px 0 14px;max-height:340px;object-fit:cover}
+.fiche div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;box-shadow:0 4px 14px rgba(88,18,29,.08)}
+.fiche small{display:block;color:var(--bx);font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.fiche span{color:var(--ink);font-weight:600;font-size:.93rem}
+.hero{width:100%;border-radius:14px;display:block;margin:6px 0 16px;max-height:340px;object-fit:cover}
 p{margin:0 0 10px}
-.cta{display:block;text-align:center;background:var(--acc);color:#fff;text-decoration:none;font-weight:600;padding:14px;border-radius:12px;margin:18px 0}
-.card{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:8px 0}
-.card img{width:44px;height:44px;object-fit:contain;border-radius:8px;background:#fff;flex:none}
+.cta{display:block;text-align:center;background:var(--bx);color:#fff;text-decoration:none;font-weight:600;padding:14px;border-radius:12px;margin:18px 0}
+h2.sec{color:var(--ink);font-size:1.15rem;margin:30px 0 4px;padding-left:12px;border-left:4px solid var(--bx)}
+h3.grp{color:var(--bx);font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;margin:22px 0 6px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+.card{display:flex;gap:12px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--bx);border-radius:12px;padding:12px 14px;margin:8px 0}
+.card img{width:46px;height:46px;object-fit:contain;border-radius:8px;background:#fff;flex:none}
 .card .n{color:var(--ink);font-weight:600}
-.card .r{font-size:.85rem;color:var(--mut)}
-.card .a{font-size:.85rem}
+.card .r{font-size:.85rem;color:var(--bx);font-weight:500}
+.card .a{font-size:.85rem;color:var(--mut)}
 .links{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.links a{font-size:.85rem;font-weight:600;color:var(--acc);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:5px 12px}
-.info{background:var(--soft);border-radius:12px;padding:12px 14px;white-space:pre-line}
-.err{text-align:center;padding:70px 0;color:var(--mut)}
-footer{margin:36px 0 28px;text-align:center;font-size:.75rem;color:var(--mut)}
+.links a{font-size:.85rem;font-weight:600;color:var(--bx);text-decoration:none;border:1px solid var(--bx);border-radius:999px;padding:5px 13px}
+.links a.p{background:var(--bx);color:#fff}
+.info{background:var(--tint);border-radius:12px;padding:12px 16px;white-space:pre-line;color:var(--ink)}
+.err{text-align:center;padding:50px 0;color:var(--mut)}
+footer{margin:34px 0 0;padding:18px 0 30px;text-align:center;font-size:.75rem;color:var(--mut);border-top:1px solid var(--line)}
+footer img{width:30px;height:30px;display:block;margin:0 auto 8px}
 </style></head>
 <body>
-<div class="top"><div class="w brand"><img src="/logo.png" alt="Legendre"><span><b>Groupe Legendre</b> · Panneau de chantier</span></div></div>
-<main class="w" id="app"><h1 id="nom">Chargement…</h1></main>
+<header><div class="w">
+  <div class="brand"><img src="/logo-blanc.png" alt="Legendre"><span><b>Groupe Legendre</b> · Panneau de chantier</span></div>
+  <h1 id="nom">Chargement…</h1>
+</div></header>
+<main class="w" id="app"></main>
 <script>
 const slug = location.pathname.split("/").filter(Boolean)[1] || "";
 const $ = (id) => document.getElementById(id);
 const el = (t, c, txt) => { const e = document.createElement(t); if (c) e.className = c; if (txt != null) e.textContent = txt; return e; };
 const fmt = (d) => d ? d.split("-").reverse().join("/") : "";
-const safeUrl = (u) => (/^https?:\/\//i.test(u) ? u : "");
+const safeUrl = (u) => (/^(https?:\/\/|\/img\/)/i.test(u) ? u : "");
+const safeLink = (u) => (/^https?:\/\//i.test(u) ? u : "");
 
 (async () => {
   const app = $("app");
@@ -64,39 +73,42 @@ const safeUrl = (u) => (/^https?:\/\//i.test(u) ? u : "");
 
     if (safeUrl(d.imageUrl)) { const i = el("img", "hero"); i.src = d.imageUrl; i.alt = d.nom; app.appendChild(i); }
     (d.description || "").split(/\n+/).filter(Boolean).forEach((t) => app.appendChild(el("p", "", t)));
-    if (safeUrl(d.lienRejoindre)) { const a = el("a", "cta", "Rejoindre le projet"); a.href = d.lienRejoindre; a.rel = "noopener"; app.appendChild(a); }
+    if (safeLink(d.lienRejoindre)) { const a = el("a", "cta", "Rejoindre le projet"); a.href = d.lienRejoindre; a.rel = "noopener"; app.appendChild(a); }
 
     // Intervenants groupés (ordre d'apparition = ordre Airtable)
     const groups = new Map();
     d.intervenants.forEach((x) => { if (!groups.has(x.groupe)) groups.set(x.groupe, []); groups.get(x.groupe).push(x); });
-    if (groups.size) app.appendChild(el("h2", "", "Intervenants du chantier"));
+    if (groups.size) app.appendChild(el("h2", "sec", "Intervenants du chantier"));
     groups.forEach((list, g) => {
-      app.appendChild(el("h2", "", g));
+      app.appendChild(el("h3", "grp", g));
       list.forEach((x) => {
         const c = el("div", "card");
-        if (safeUrl(x.logo)) { const i = el("img"); i.src = x.logo; i.alt = ""; c.appendChild(i); }
+        if (safeUrl(x.logo)) { const i = el("img"); i.src = x.logo; i.alt = ""; i.loading = "lazy"; c.appendChild(i); }
         const b = el("div");
         b.appendChild(el("div", "n", x.entreprise));
         if (x.role) b.appendChild(el("div", "r", x.role));
         if (x.adresse) b.appendChild(el("div", "a", x.adresse));
         const l = el("div", "links");
-        if (x.telephone) { const a = el("a", "", "📞 " + x.telephone); a.href = "tel:" + x.telephone.replace(/[^\d+]/g, ""); l.appendChild(a); }
+        if (x.telephone) { const a = el("a", "p", "📞 " + x.telephone); a.href = "tel:" + x.telephone.replace(/[^\d+]/g, ""); l.appendChild(a); }
         if (x.email) { const a = el("a", "", "✉️ E-mail"); a.href = "mailto:" + x.email; l.appendChild(a); }
-        if (safeUrl(x.siteWeb)) { const a = el("a", "", "🌐 Site web"); a.href = x.siteWeb; a.rel = "noopener"; l.appendChild(a); }
+        if (safeLink(x.siteWeb)) { const a = el("a", "", "🌐 Site web"); a.href = x.siteWeb; a.rel = "noopener"; l.appendChild(a); }
         if (l.children.length) b.appendChild(l);
         c.appendChild(b); app.appendChild(c);
       });
     });
 
     if (d.dateDebut || d.dateFin || d.horaires) {
-      app.appendChild(el("h2", "", "Informations chantier"));
+      app.appendChild(el("h2", "sec", "Informations chantier"));
       const lines = [];
       if (d.dateDebut) lines.push("Début des travaux : " + fmt(d.dateDebut));
       if (d.dateFin) lines.push("Fin prévisionnelle : " + fmt(d.dateFin));
       if (d.horaires) lines.push("Horaires :\n" + d.horaires);
       app.appendChild(el("div", "info", lines.join("\n")));
     }
-    app.appendChild(el("footer", "", "Coordonnées professionnelles transmises par les entreprises du chantier." + (d.contact ? " Rectification ou suppression : " + d.contact : "")));
+    const ft = el("footer");
+    const lg = el("img"); lg.src = "/logo-bordeaux.png"; lg.alt = "Legendre"; ft.appendChild(lg);
+    ft.appendChild(document.createTextNode("Coordonnées professionnelles transmises par les entreprises du chantier." + (d.contact ? " Rectification ou suppression : " + d.contact : "")));
+    app.appendChild(ft);
   } catch {
     $("nom").textContent = "Chantier introuvable";
     app.appendChild(el("div", "err", "Ce chantier n'existe pas ou n'est plus actif."));

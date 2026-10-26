@@ -9,7 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f6f6f4;--card:#fff;--ink:#1e1e1c;--mut:#85857f;--acc:#1e1e1c;--line:#e8e8e4}
+:root{--bg:#faf6f6;--card:#fff;--ink:#2a1a1c;--mut:#8a7478;--acc:#7b1e2b;--line:#ecdde0}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 Poppins,system-ui,sans-serif}
 .w{max-width:900px;margin:0 auto;padding:16px}
@@ -32,9 +32,18 @@ label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:2px}
 .ok{background:#eef7ee;border:1px solid #bfe0bf;border-radius:10px;padding:10px 12px;margin-top:10px}
 .tag{display:inline-block;font-size:.72rem;border-radius:999px;padding:1px 8px;border:1px solid var(--line);color:var(--mut)}
 #qr img{width:200px;height:200px;image-rendering:pixelated;background:#fff;padding:8px;border-radius:8px}
+.top{background:linear-gradient(135deg,#7b1e2b,#58121d);color:#fff}
+.topin{max-width:900px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px;font-size:.9rem}
+.topin img{width:38px;height:38px}
+input:focus,select:focus,textarea:focus{outline:2px solid #7b1e2b33;border-color:#7b1e2b}
+h2{color:#7b1e2b}
+a{color:#7b1e2b}
 .hide{display:none}
 </style></head>
-<body><div class="w">
+<body>
+<div class="top"><div class="topin"><img src="/logo-blanc.png" alt="Legendre"><span><b>Groupe Legendre</b> · Panneau de chantier</span></div></div>
+<input type="file" id="file" accept="image/png,image/jpeg,image/webp" class="hide">
+<div class="w">
 
 <div id="loginV" class="card" style="max-width:360px;margin:60px auto">
   <h2>Connexion</h2>
@@ -57,12 +66,14 @@ label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:2px}
   <div id="chForm" class="card hide">
     <h2>Fiche chantier</h2>
     <div class="g">
-      <div><label>Slug (adresse de la page) *</label><input id="c_slug" placeholder="merignac-x7k2"></div>
+      <div id="slugWrap"><label>Slug (adresse de la page) *</label><input id="c_slug" placeholder="merignac-x7k2"></div>
       <div><label>Nom du projet</label><input id="c_nom"></div>
       <div><label>Surface</label><input id="c_surf" placeholder="9 981 m² SDP"></div>
       <div><label>Usage</label><input id="c_usage" placeholder="Établissement de santé"></div>
       <div><label>Adresse</label><input id="c_adr"></div>
-      <div><label>URL de l'image (https://…)</label><input id="c_img"></div>
+      <div><label>Image du projet (fichier ou lien https://…)</label>
+        <div class="row" style="flex-wrap:nowrap"><input id="c_img" placeholder="https://… ou envoie un fichier" style="flex:1;min-width:0"><button type="button" onclick="pickImg('c_img',1600)">📁 Fichier</button></div>
+        <div class="mut small" id="c_img_st"></div></div>
       <div><label>Début des travaux</label><input id="c_deb" type="date"></div>
       <div><label>Fin prévisionnelle</label><input id="c_fin" type="date"></div>
       <div><label>Lien « Rejoindre le projet »</label><input id="c_join" placeholder="optionnel"></div>
@@ -124,7 +135,9 @@ label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:2px}
       <div><label>Téléphone (standard / pro)</label><input id="i_tel" type="tel"></div>
       <div><label>E-mail pro (optionnel)</label><input id="i_mail" type="email"></div>
       <div><label>Site web (https://…)</label><input id="i_web"></div>
-      <div><label>Logo (URL https://…)</label><input id="i_logo"></div>
+      <div><label>Logo (fichier ou lien https://…)</label>
+        <div class="row" style="flex-wrap:nowrap"><input id="i_logo" style="flex:1;min-width:0"><button type="button" onclick="pickImg('i_logo',400)">📁 Fichier</button></div>
+        <div class="mut small" id="i_logo_st"></div></div>
       <div><label>Ordre d'affichage</label><input id="i_ordre" type="number"></div>
     </div>
     <div class="mut small" style="margin-top:6px">Données publiques : mets uniquement des coordonnées d'entreprise (standard, adresse générique), jamais un mobile ou un e-mail personnel.</div>
@@ -196,6 +209,7 @@ function selectCh() {
 function lockFields(existing) {
   $("c_slug").readOnly = existing || !isAdmin();
   show("actWrap", isAdmin());
+  show("slugWrap", isAdmin()); // le slug est une info technique : masquée pour les gestionnaires
 }
 function fillCh(c) {
   const m = { c_slug: "Slug", c_nom: "Nom", c_surf: "Surface", c_usage: "Usage", c_adr: "Adresse", c_img: "ImageUrl",
@@ -273,7 +287,11 @@ async function delUser(id, name) {
 // ---------- QR + affiche ----------
 function chUrl() { return location.origin + "/c/" + cur.Slug; }
 function qrMatrix() { const q = qrcode(0, "H"); q.addData(chUrl()); q.make(); return q; }
-function drawQr() { $("qr").innerHTML = qrMatrix().createImgTag(8, 8); $("qrUrl").textContent = chUrl(); }
+function drawQr() {
+  $("qr").innerHTML = qrMatrix().createImgTag(8, 8);
+  // l'adresse brute (avec le slug) n'est affichée qu'à l'admin ; le gestionnaire a un simple lien
+  $("qrUrl").innerHTML = (isAdmin() ? esc(chUrl()) + "<br>" : "") + '<a href="' + esc(chUrl()) + '" target="_blank" rel="noopener">Voir la page publique ↗</a>';
+}
 function drawQrOn(ctx, x, y, size) {
   const q = qrMatrix(), n = q.getModuleCount(), m = size / n;
   ctx.fillStyle = "#000";
@@ -288,7 +306,8 @@ async function dlAffiche() {
   await document.fonts.load("700 80px Poppins"); await document.fonts.load("400 80px Poppins");
   const W = 1414, H = 2000, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
   x.fillStyle = "#fff"; x.fillRect(0, 0, W, H); x.textBaseline = "alphabetic";
-  const P = "#1e1e1c", K = "#6b6b66";
+  const P = "#7b1e2b", K = "#5a4a4d";
+  x.fillStyle = P; x.fillRect(0, 0, W, 26); x.fillRect(0, H - 26, W, 26); // bandeaux bordeaux haut et bas
   const line = (parts, y, size) => {
     const f = (b) => `${b ? 700 : 400} ${size}px Poppins, system-ui, sans-serif`;
     let w = 0; parts.forEach(([t, b]) => { x.font = f(b); w += x.measureText(t + " ").width; });
@@ -306,6 +325,31 @@ async function dlAffiche() {
   line([["Panneau de chantier", 0, K]], 1940, 88);
   save(c, "affiche-qr-" + cur.Slug + ".png");
 }
+
+// ---------- Envoi d'image (redimensionnée dans le navigateur avant envoi) ----------
+let imgTarget = null;
+function pickImg(inputId, max) { imgTarget = { id: inputId, max }; $("file").value = ""; $("file").click(); }
+$("file").addEventListener("change", async () => {
+  const f = $("file").files[0];
+  if (!f || !imgTarget) return;
+  const t = imgTarget, st = $(t.id + "_st");
+  err(); if (st) st.textContent = "Envoi en cours…";
+  try {
+    const slug = ((cur && cur.Slug) || $("c_slug").value || "").trim().toLowerCase();
+    if (!slug) throw new Error("Renseigne d'abord le nom du chantier");
+    const bmp = await createImageBitmap(f);
+    const k = Math.min(1, t.max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k));
+    const x = c.getContext("2d"), png = t.max <= 600; // logos en PNG (transparence), photos en JPEG
+    if (!png) { x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); }
+    x.drawImage(bmp, 0, 0, c.width, c.height);
+    const type = png ? "image/png" : "image/jpeg";
+    const d = await api({ action: "uploadImage", slug, type, data: c.toDataURL(type, 0.85).split(",")[1] });
+    $(t.id).value = d.url;
+    if (st) st.textContent = "Image envoyée ✔ — clique sur « Enregistrer » pour la publier.";
+  } catch (e) { if (st) st.textContent = ""; err(e.message || "Envoi impossible (image illisible ?)"); }
+});
 
 // ---------- Intervenants ----------
 async function loadIv() {

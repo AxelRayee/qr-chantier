@@ -3,6 +3,7 @@
 //  - manager : gestionnaire invité, UNIQUEMENT sur son chantier (infos + intervenants)
 //  - editor  : ancien rôle global défini dans ADMIN_USERS (intervenants de tous les chantiers)
 const crypto = require("crypto");
+const { connectLambda, getStore } = require("@netlify/blobs");
 const {
   json, at, esc, isSlug, sha256, listAll, login, auth, checkManager,
   T_CHANTIERS, T_INTERV, T_USERS, T_INVITES,
@@ -10,13 +11,18 @@ const {
 
 const clean = (v, n = 200) => (typeof v === "string" ? v.trim().slice(0, n) : "");
 const url = (v) => { const s = clean(v, 500); return /^https?:\/\//i.test(s) ? s : ""; };
+// URL d'image : lien https externe OU image envoyée via l'admin (/img/<slug>/<id>.jpg|png)
+const imgUrl = (v) => {
+  const s = clean(v, 500);
+  return /^https?:\/\//i.test(s) || /^\/img\/[a-z0-9-]{2,60}\/[a-f0-9]{16}\.(jpg|png)$/.test(s) ? s : "";
+};
 const isRec = (id) => /^rec[A-Za-z0-9]{10,}$/.test(id || "");
 const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
 const ADMIN_ONLY = new Set(["createInvite", "listInvites", "revokeInvite", "listUsers", "setUserActif", "deleteUser"]);
 
 const chFields = (b) => ({
   Nom: clean(b.nom), Adresse: clean(b.adresse), Surface: clean(b.surface, 60), Usage: clean(b.usage, 120),
-  ImageUrl: url(b.imageUrl), Description: clean(b.description, 3000), LienRejoindre: url(b.lienRejoindre),
+  ImageUrl: imgUrl(b.imageUrl), Description: clean(b.description, 3000), LienRejoindre: url(b.lienRejoindre),
   Horaires: clean(b.horaires, 500),
   DateDebut: isDate(b.dateDebut) ? b.dateDebut : null,
   DateFin: isDate(b.dateFin) ? b.dateFin : null,
@@ -24,7 +30,7 @@ const chFields = (b) => ({
 const ivFields = (b, slug) => ({
   Slug: slug, Entreprise: clean(b.entreprise), Groupe: clean(b.groupe), Role: clean(b.role),
   Adresse: clean(b.adresse), Telephone: clean(b.telephone, 30), Email: clean(b.email),
-  SiteWeb: url(b.siteWeb), LogoUrl: url(b.logo),
+  SiteWeb: url(b.siteWeb), LogoUrl: imgUrl(b.logo),
   Ordre: Number.isFinite(+b.ordre) ? +b.ordre : 999,
 });
 
@@ -102,6 +108,23 @@ exports.handler = async (event) => {
         }
         await at(T_INTERV, { method: "DELETE", id: b.id });
         return json(200, { ok: true });
+      }
+
+      // ----- Envoi d'une image (stockée dans Netlify Blobs, servie par /img/...) -----
+      case "uploadImage": {
+        if (!isSlug(slug)) return json(400, { error: "Renseigne d'abord le chantier (slug)" });
+        const ext = b.type === "image/png" ? "png" : b.type === "image/jpeg" ? "jpg" : null;
+        if (!ext) return json(400, { error: "Format accepté : JPEG ou PNG" });
+        const buf = Buffer.from(String(b.data || ""), "base64");
+        if (!buf.length || buf.length > 2 * 1024 * 1024) return json(400, { error: "Image trop lourde (2 Mo maximum)" });
+        const okMagic = ext === "jpg"
+          ? buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff
+          : buf.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+        if (!okMagic) return json(400, { error: "Fichier image invalide" });
+        connectLambda(event);
+        const key = `${slug}/${crypto.randomBytes(8).toString("hex")}.${ext}`;
+        await getStore("images").set(key, buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+        return json(200, { url: "/img/" + key });
       }
 
       // ----- Admin : invitations et comptes -----

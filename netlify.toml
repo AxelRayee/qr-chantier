@@ -5,6 +5,12 @@
 [functions]
   node_bundler = "esbuild"
 
+# /img/<slug>/<id>.jpg -> image envoyée depuis l'admin
+[[redirects]]
+  from = "/img/*"
+  to = "/.netlify/functions/img?k=:splat"
+  status = 200
+
 # /c/mon-chantier -> page publique du chantier
 [[redirects]]
   from = "/c/*"
