@@ -38,7 +38,7 @@ p{margin:0 0 10px}
 footer{margin:36px 0 28px;text-align:center;font-size:.75rem;color:var(--mut)}
 </style></head>
 <body>
-<div class="top"><div class="w brand"><img src="/logo.png" alt="Legendre"><span>Legendre Construction · Panneau de chantier <b>connecté</b></span></div></div>
+<div class="top"><div class="w brand"><img src="/logo.png" alt="Legendre"><span><b>Groupe Legendre</b> · Panneau de chantier</span></div></div>
 <main class="w" id="app"><h1 id="nom">Chargement…</h1></main>
 <script>
 const slug = location.pathname.split("/").filter(Boolean)[1] || "";
@@ -96,7 +96,7 @@ const safeUrl = (u) => (/^https?:\/\//i.test(u) ? u : "");
       if (d.horaires) lines.push("Horaires :\n" + d.horaires);
       app.appendChild(el("div", "info", lines.join("\n")));
     }
-    app.appendChild(el("footer", "", "Informations transmises par les entreprises du chantier"));
+    app.appendChild(el("footer", "", "Coordonnées professionnelles transmises par les entreprises du chantier." + (d.contact ? " Rectification ou suppression : " + d.contact : "")));
   } catch {
     $("nom").textContent = "Chantier introuvable";
     app.appendChild(el("div", "err", "Ce chantier n'existe pas ou n'est plus actif."));

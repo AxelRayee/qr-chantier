@@ -1,10 +1,28 @@
-// Endpoint PROTÉGÉ : login + CRUD. Rôles : "admin" (tout) / "editor" (intervenants seulement)
-const { json, at, esc, isSlug, listAll, login, auth, T_CHANTIERS, T_INTERV } = require("./_lib");
+// Endpoint PROTÉGÉ. Rôles :
+//  - admin   : tout (créer chantiers, inviter, gérer les comptes)
+//  - manager : gestionnaire invité, UNIQUEMENT sur son chantier (infos + intervenants)
+//  - editor  : ancien rôle global défini dans ADMIN_USERS (intervenants de tous les chantiers)
+const crypto = require("crypto");
+const {
+  json, at, esc, isSlug, sha256, listAll, login, auth, checkManager,
+  T_CHANTIERS, T_INTERV, T_USERS, T_INVITES,
+} = require("./_lib");
 
 const clean = (v, n = 200) => (typeof v === "string" ? v.trim().slice(0, n) : "");
 const url = (v) => { const s = clean(v, 500); return /^https?:\/\//i.test(s) ? s : ""; };
-const ivFields = (b) => ({
-  Slug: b.slug, Entreprise: clean(b.entreprise), Groupe: clean(b.groupe), Role: clean(b.role),
+const isRec = (id) => /^rec[A-Za-z0-9]{10,}$/.test(id || "");
+const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
+const ADMIN_ONLY = new Set(["createInvite", "listInvites", "revokeInvite", "listUsers", "setUserActif", "deleteUser"]);
+
+const chFields = (b) => ({
+  Nom: clean(b.nom), Adresse: clean(b.adresse), Surface: clean(b.surface, 60), Usage: clean(b.usage, 120),
+  ImageUrl: url(b.imageUrl), Description: clean(b.description, 3000), LienRejoindre: url(b.lienRejoindre),
+  Horaires: clean(b.horaires, 500),
+  DateDebut: isDate(b.dateDebut) ? b.dateDebut : null,
+  DateFin: isDate(b.dateFin) ? b.dateFin : null,
+});
+const ivFields = (b, slug) => ({
+  Slug: slug, Entreprise: clean(b.entreprise), Groupe: clean(b.groupe), Role: clean(b.role),
   Adresse: clean(b.adresse), Telephone: clean(b.telephone, 30), Email: clean(b.email),
   SiteWeb: url(b.siteWeb), LogoUrl: url(b.logo),
   Ordre: Number.isFinite(+b.ordre) ? +b.ordre : 999,
@@ -18,54 +36,129 @@ exports.handler = async (event) => {
   try {
     if (b.action === "login") {
       await new Promise((r) => setTimeout(r, 400));
-      const s = login(b.user, b.pass);
-      return s ? json(200, s) : json(401, { error: "Identifiants incorrects" });
+      const s = await login(b.user, b.pass);
+      return s ? json(200, s) : json(401, { error: "Identifiants incorrects, ou compte désactivé / verrouillé 15 min" });
     }
 
     const me = auth(event);
     if (!me) return json(401, { error: "Session expirée" });
     const isAdmin = me.r === "admin";
+    const isManager = me.r === "manager";
+    if (isManager && !(await checkManager(me))) return json(403, { error: "Accès désactivé ou expiré" });
+    if (ADMIN_ONLY.has(b.action) && !isAdmin) return json(403, { error: "Réservé admin" });
+
+    // Un gestionnaire est TOUJOURS cantonné à son chantier, quoi que le navigateur envoie
+    const slug = isManager ? me.s : b.slug;
 
     switch (b.action) {
       case "listChantiers": {
-        const r = await listAll(T_CHANTIERS);
+        const r = await listAll(T_CHANTIERS, isManager ? `{Slug}="${esc(me.s)}"` : undefined);
         return json(200, r.map((x) => ({ id: x.id, ...x.fields })));
       }
+
       case "saveChantier": {
+        if (isManager) {
+          const r = (await listAll(T_CHANTIERS, `{Slug}="${esc(me.s)}"`))[0];
+          if (!r) return json(404, { error: "Chantier introuvable" });
+          // le gestionnaire ne peut changer ni le slug ni l'état Actif
+          const out = await at(T_CHANTIERS, { method: "PATCH", id: r.id, body: { fields: chFields(b) } });
+          return json(200, out);
+        }
         if (!isAdmin) return json(403, { error: "Réservé admin" });
         if (!isSlug(b.slug)) return json(400, { error: "Slug invalide (a-z, 0-9, tirets)" });
-        const fields = {
-          Slug: b.slug, Nom: clean(b.nom), Adresse: clean(b.adresse), Surface: clean(b.surface, 60),
-          Usage: clean(b.usage, 120), ImageUrl: url(b.imageUrl), Description: clean(b.description, 3000),
-          LienRejoindre: url(b.lienRejoindre), Horaires: clean(b.horaires, 500), Actif: !!b.actif,
-        };
-        // les dates vides ne doivent pas être envoyées (Airtable refuse "")
-        if (/^\d{4}-\d{2}-\d{2}$/.test(b.dateDebut || "")) fields.DateDebut = b.dateDebut;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(b.dateFin || "")) fields.DateFin = b.dateFin;
+        const fields = { ...chFields(b), Slug: b.slug, Actif: !!b.actif };
         const out = b.id
           ? await at(T_CHANTIERS, { method: "PATCH", id: b.id, body: { fields } })
           : await at(T_CHANTIERS, { method: "POST", body: { fields } });
         return json(200, out);
       }
+
       case "listIntervenants": {
-        if (!isSlug(b.slug)) return json(400, { error: "slug invalide" });
-        const r = await listAll(T_INTERV, `{Slug}="${esc(b.slug)}"`);
+        if (!isSlug(slug)) return json(400, { error: "slug invalide" });
+        const r = await listAll(T_INTERV, `{Slug}="${esc(slug)}"`);
         return json(200, r.map((x) => ({ id: x.id, ...x.fields })).sort((a, c) => (a.Ordre ?? 999) - (c.Ordre ?? 999)));
       }
+
       case "saveIntervenant": {
-        if (!isSlug(b.slug)) return json(400, { error: "slug invalide" });
+        if (!isSlug(slug)) return json(400, { error: "slug invalide" });
         if (!clean(b.entreprise)) return json(400, { error: "Entreprise obligatoire" });
-        const fields = ivFields(b);
+        if (b.id) {
+          if (!isRec(b.id)) return json(400, { error: "id invalide" });
+          const cur = await at(T_INTERV, { id: b.id });
+          if (cur.fields.Slug !== slug) return json(403, { error: "Cet intervenant n'appartient pas à ce chantier" });
+        }
+        const fields = ivFields(b, slug);
         const out = b.id
           ? await at(T_INTERV, { method: "PATCH", id: b.id, body: { fields } })
           : await at(T_INTERV, { method: "POST", body: { fields } });
         return json(200, out);
       }
+
       case "deleteIntervenant": {
-        if (!/^rec[A-Za-z0-9]{10,}$/.test(b.id || "")) return json(400, { error: "id invalide" });
+        if (!isRec(b.id)) return json(400, { error: "id invalide" });
+        if (isManager) {
+          const cur = await at(T_INTERV, { id: b.id });
+          if (cur.fields.Slug !== me.s) return json(403, { error: "Cet intervenant n'appartient pas à ce chantier" });
+        }
         await at(T_INTERV, { method: "DELETE", id: b.id });
         return json(200, { ok: true });
       }
+
+      // ----- Admin : invitations et comptes -----
+      case "createInvite": {
+        if (!isSlug(b.slug)) return json(400, { error: "slug invalide" });
+        const ch = await listAll(T_CHANTIERS, `{Slug}="${esc(b.slug)}"`);
+        if (!ch.length) return json(404, { error: "Chantier introuvable" });
+        const email = clean(b.email, 120).toLowerCase();
+        if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: "E-mail invalide" });
+        const days = Math.min(60, Math.max(1, Math.round(+b.days || 14)));
+        const token = crypto.randomBytes(24).toString("base64url"); // montré UNE seule fois, jamais stocké en clair
+        const expire = Date.now() + days * 864e5;
+        const fields = {
+          Jeton: sha256(token), Slug: b.slug, Note: clean(b.note, 80), Expire: expire,
+          Utilisee: false, Revoquee: false,
+        };
+        if (email) fields.EmailInvite = email;
+        await at(T_INVITES, { method: "POST", body: { fields } });
+        return json(200, { token, expire });
+      }
+
+      case "listInvites": {
+        if (!isSlug(b.slug)) return json(400, { error: "slug invalide" });
+        const r = await listAll(T_INVITES, `{Slug}="${esc(b.slug)}"`);
+        return json(200, r.map((x) => ({
+          id: x.id, note: x.fields.Note || "", email: x.fields.EmailInvite || "", expire: x.fields.Expire || 0,
+          utilisee: !!x.fields.Utilisee, utilisePar: x.fields.UtilisePar || "", revoquee: !!x.fields.Revoquee,
+        })));
+      }
+
+      case "revokeInvite": {
+        if (!isRec(b.id)) return json(400, { error: "id invalide" });
+        await at(T_INVITES, { method: "PATCH", id: b.id, body: { fields: { Revoquee: true } } });
+        return json(200, { ok: true });
+      }
+
+      case "listUsers": {
+        if (!isSlug(b.slug)) return json(400, { error: "slug invalide" });
+        const r = await listAll(T_USERS, `{Slug}="${esc(b.slug)}"`);
+        return json(200, r.map((x) => ({
+          id: x.id, identifiant: x.fields.Identifiant || "", email: x.fields.Email || "",
+          actif: !!x.fields.Actif, expire: x.fields.Expire || "",
+        })));
+      }
+
+      case "setUserActif": {
+        if (!isRec(b.id)) return json(400, { error: "id invalide" });
+        await at(T_USERS, { method: "PATCH", id: b.id, body: { fields: { Actif: !!b.actif } } });
+        return json(200, { ok: true });
+      }
+
+      case "deleteUser": {
+        if (!isRec(b.id)) return json(400, { error: "id invalide" });
+        await at(T_USERS, { method: "DELETE", id: b.id });
+        return json(200, { ok: true });
+      }
+
       default:
         return json(400, { error: "action inconnue" });
     }

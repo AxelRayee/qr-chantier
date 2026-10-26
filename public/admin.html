@@ -4,8 +4,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <meta name="color-scheme" content="light">
-<link rel="icon" href="/logo.png">
 <title>Admin chantiers</title>
+<link rel="icon" href="/logo.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -16,6 +16,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 Poppins,system
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0}
 h1{font-size:1.3rem;margin:0}h2{font-size:1.05rem;margin:0 0 10px}
 input,select,textarea,button{font:inherit;padding:9px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);width:100%}
+input[readonly],input:disabled{background:#f1f1ee;color:var(--mut)}
 button{cursor:pointer;width:auto;font-weight:600}
 button.p{background:var(--acc);border-color:var(--acc);color:#fff}
 button.d{color:#c92a2a}
@@ -26,7 +27,10 @@ label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:2px}
 .iv{border-top:1px solid var(--line);padding:10px 0}
 .iv:first-child{border-top:0}
 .mut{color:var(--mut)}
+.small{font-size:.82rem}
 .err{color:#c92a2a;min-height:1.2em}
+.ok{background:#eef7ee;border:1px solid #bfe0bf;border-radius:10px;padding:10px 12px;margin-top:10px}
+.tag{display:inline-block;font-size:.72rem;border-radius:999px;padding:1px 8px;border:1px solid var(--line);color:var(--mut)}
 #qr img{width:200px;height:200px;image-rendering:pixelated;background:#fff;padding:8px;border-radius:8px}
 .hide{display:none}
 </style></head>
@@ -34,16 +38,16 @@ label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:2px}
 
 <div id="loginV" class="card" style="max-width:360px;margin:60px auto">
   <h2>Connexion</h2>
-  <label>Identifiant</label><input id="u" autocomplete="username">
+  <label>Identifiant</label><input id="u" autocomplete="username" autocapitalize="none">
   <label style="margin-top:8px">Mot de passe</label><input id="p" type="password" autocomplete="current-password">
   <div class="row" style="margin-top:12px"><button class="p" onclick="doLogin()">Se connecter</button></div>
   <div class="err" id="lerr"></div>
 </div>
 
 <div id="appV" class="hide">
-  <div class="row sp"><h1>Chantiers</h1><button onclick="logout()">Déconnexion</button></div>
+  <div class="row sp"><h1 id="title">Chantiers</h1><button onclick="logout()">Déconnexion</button></div>
 
-  <div class="card">
+  <div class="card" id="chooser">
     <div class="row">
       <select id="chSel" onchange="selectCh()" style="flex:1"></select>
       <button id="newChBtn" class="hide" onclick="newCh()">+ Nouveau chantier</button>
@@ -53,7 +57,7 @@ label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:2px}
   <div id="chForm" class="card hide">
     <h2>Fiche chantier</h2>
     <div class="g">
-      <div><label>Slug (URL) *</label><input id="c_slug" placeholder="clinique-du-parc"></div>
+      <div><label>Slug (adresse de la page) *</label><input id="c_slug" placeholder="merignac-x7k2"></div>
       <div><label>Nom du projet</label><input id="c_nom"></div>
       <div><label>Surface</label><input id="c_surf" placeholder="9 981 m² SDP"></div>
       <div><label>Usage</label><input id="c_usage" placeholder="Établissement de santé"></div>
@@ -62,11 +66,32 @@ label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:2px}
       <div><label>Début des travaux</label><input id="c_deb" type="date"></div>
       <div><label>Fin prévisionnelle</label><input id="c_fin" type="date"></div>
       <div><label>Lien « Rejoindre le projet »</label><input id="c_join" placeholder="optionnel"></div>
-      <div><label>Actif</label><select id="c_act"><option value="1">Oui</option><option value="0">Non</option></select></div>
+      <div id="actWrap"><label>Page publique active</label><select id="c_act"><option value="1">Oui</option><option value="0">Non</option></select></div>
     </div>
     <label style="margin-top:8px">Description (un paragraphe par ligne)</label><textarea id="c_desc" rows="4"></textarea>
     <label style="margin-top:8px">Horaires</label><textarea id="c_hor" rows="2" placeholder="Lundi au vendredi : 08h00 - 17h00"></textarea>
     <div class="row" style="margin-top:10px"><button class="p" onclick="saveCh()">Enregistrer le chantier</button></div>
+  </div>
+
+  <div id="accCard" class="card hide">
+    <h2>Accès gestionnaire de ce chantier</h2>
+    <p class="mut small" style="margin:0 0 10px">Envoie un lien unique à la personne qui complétera les informations. Elle crée elle-même son compte et n'a accès qu'à ce chantier. Le lien est à usage unique.</p>
+    <div class="g">
+      <div><label>Pour qui ? (ex. Erwan)</label><input id="i_note" maxlength="80"></div>
+      <div><label>E-mail imposé (optionnel, plus sûr)</label><input id="i_mail2" type="email" placeholder="erwan@…"></div>
+      <div><label>Validité du lien</label><select id="i_days"><option value="3">3 jours</option><option value="7" selected>7 jours</option><option value="14">14 jours</option><option value="30">30 jours</option></select></div>
+    </div>
+    <div class="row" style="margin-top:10px"><button class="p" onclick="createInvite()">Créer le lien d'invitation</button></div>
+    <div id="inviteOut" class="ok hide">
+      <div class="small"><b>Lien à envoyer</b> (affiché une seule fois, copie-le maintenant) :</div>
+      <input id="inviteUrl" readonly style="margin:6px 0" onclick="this.select()">
+      <div class="row"><button onclick="copyId('inviteUrl')">Copier le lien</button><button onclick="copyMsg()">Copier un message prêt à envoyer</button></div>
+      <div class="small mut" id="inviteInfo" style="margin-top:6px"></div>
+    </div>
+    <h2 style="margin-top:16px;font-size:.95rem">Comptes créés</h2>
+    <div id="userList" class="small"></div>
+    <h2 style="margin-top:16px;font-size:.95rem">Invitations</h2>
+    <div id="invList" class="small"></div>
   </div>
 
   <div id="qrCard" class="card hide">
@@ -79,7 +104,7 @@ label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:2px}
           <button class="p" onclick="dlAffiche()">Télécharger l'affiche (PNG)</button>
           <button onclick="dlQr()">QR seul (PNG)</button>
         </div>
-        <div class="mut" style="margin-top:8px;font-size:.8rem">L'affiche est en 1414×2000 px : à imprimer en A4/A3 sur le panneau.</div>
+        <div class="mut small" style="margin-top:8px">Affiche 1414×2000 px : à imprimer en A4/A3 sur le panneau. Le QR ne change jamais tant que l'adresse du chantier ne change pas.</div>
       </div>
     </div>
   </div>
@@ -96,12 +121,13 @@ label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:2px}
       <div><label>Groupe / section</label><input id="i_grp" list="grps" placeholder="Maître d'ouvrage, Lot 3 - Gros-œuvre…"></div>
       <div><label>Rôle</label><input id="i_role" placeholder="Mandataire, co-traitant…"></div>
       <div><label>Adresse</label><input id="i_adr"></div>
-      <div><label>Téléphone</label><input id="i_tel" type="tel"></div>
-      <div><label>E-mail (optionnel)</label><input id="i_mail" type="email"></div>
+      <div><label>Téléphone (standard / pro)</label><input id="i_tel" type="tel"></div>
+      <div><label>E-mail pro (optionnel)</label><input id="i_mail" type="email"></div>
       <div><label>Site web (https://…)</label><input id="i_web"></div>
       <div><label>Logo (URL https://…)</label><input id="i_logo"></div>
       <div><label>Ordre d'affichage</label><input id="i_ordre" type="number"></div>
     </div>
+    <div class="mut small" style="margin-top:6px">Données publiques : mets uniquement des coordonnées d'entreprise (standard, adresse générique), jamais un mobile ou un e-mail personnel.</div>
     <datalist id="grps"></datalist>
     <div class="row" style="margin-top:10px"><button class="p" onclick="saveIv()">Enregistrer</button><button onclick="cancelIv()">Annuler</button></div>
   </div>
@@ -112,7 +138,11 @@ label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:2px}
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-let S = JSON.parse(sessionStorage.getItem("s") || "null"), chantiers = [], cur = null, ivs = [], editId = null;
+let S = null;
+try { S = JSON.parse(sessionStorage.getItem("s") || "null"); } catch {}
+let chantiers = [], cur = null, ivs = [], editId = null, lastInvite = null;
+const isAdmin = () => S && S.role === "admin";
+const isManager = () => S && S.role === "manager";
 
 async function api(body) {
   const r = await fetch("/.netlify/functions/admin", {
@@ -131,16 +161,19 @@ const err = (m) => ($("err").textContent = m || "");
 async function doLogin() {
   try {
     S = await api({ action: "login", user: $("u").value, pass: $("p").value });
-    sessionStorage.setItem("s", JSON.stringify(S));
+    try { sessionStorage.setItem("s", JSON.stringify(S)); } catch {}
+    $("p").value = "";
     start();
   } catch (e) { $("lerr").textContent = e.message; }
 }
-function logout() { sessionStorage.removeItem("s"); S = null; show("appV", false); show("loginV", true); }
+function logout() { try { sessionStorage.removeItem("s"); } catch {} S = null; show("appV", false); show("loginV", true); }
 
 async function start() {
   show("loginV", false); show("appV", true);
-  show("newChBtn", S.role === "admin");
-  await loadChantiers();
+  show("newChBtn", isAdmin());
+  show("chooser", !isManager());
+  $("title").textContent = isManager() ? "Mon chantier" : "Chantiers";
+  await loadChantiers(isManager() ? undefined : undefined);
 }
 async function loadChantiers(keep) {
   try {
@@ -148,15 +181,21 @@ async function loadChantiers(keep) {
     $("chSel").innerHTML = '<option value="">— choisir un chantier —</option>' +
       chantiers.map((c) => `<option value="${esc(c.Slug)}">${esc(c.Nom || c.Slug)}</option>`).join("");
     if (keep) $("chSel").value = keep;
+    else if (isManager() && chantiers[0]) $("chSel").value = chantiers[0].Slug;
     selectCh();
-  } catch (e) { err(e.message); }
+  } catch (e) { err(e.message); if (S) { /* accès coupé */ } }
 }
 function selectCh() {
   const slug = $("chSel").value;
   cur = chantiers.find((c) => c.Slug === slug) || null;
-  show("chForm", !!cur && S.role === "admin"); show("qrCard", !!cur); show("ivCard", !!cur); show("ivForm", false);
+  show("chForm", !!cur); show("accCard", !!cur && isAdmin()); show("qrCard", !!cur); show("ivCard", !!cur); show("ivForm", false);
+  show("inviteOut", false);
   if (!cur) return;
-  fillCh(cur); drawQr(); loadIv();
+  fillCh(cur); lockFields(true); drawQr(); loadIv(); if (isAdmin()) loadAccess();
+}
+function lockFields(existing) {
+  $("c_slug").readOnly = existing || !isAdmin();
+  show("actWrap", isAdmin());
 }
 function fillCh(c) {
   const m = { c_slug: "Slug", c_nom: "Nom", c_surf: "Surface", c_usage: "Usage", c_adr: "Adresse", c_img: "ImageUrl",
@@ -164,10 +203,16 @@ function fillCh(c) {
   for (const k in m) $(k).value = c[m[k]] || "";
   $("c_act").value = c.Actif ? "1" : "0";
 }
+const slugify = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+const rand4 = () => Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => "abcdefghjkmnpqrstuvwxyz23456789"[b % 31]).join("");
 function newCh() {
-  cur = { id: null }; $("chSel").value = ""; fillCh({ Actif: true });
-  show("chForm", true); show("qrCard", false); show("ivCard", false); show("ivForm", false);
+  cur = { id: null }; $("chSel").value = ""; fillCh({ Actif: true }); lockFields(false);
+  show("chForm", true); show("qrCard", false); show("ivCard", false); show("ivForm", false); show("accCard", false);
 }
+// Slug suggéré avec suffixe aléatoire : l'adresse n'est pas devinable
+$("c_nom").addEventListener("blur", () => {
+  if (cur && !cur.id && !$("c_slug").value && $("c_nom").value) $("c_slug").value = (slugify($("c_nom").value) || "chantier") + "-" + rand4();
+});
 async function saveCh() {
   err();
   try {
@@ -177,8 +222,52 @@ async function saveCh() {
       dateDebut: $("c_deb").value, dateFin: $("c_fin").value, lienRejoindre: $("c_join").value,
       description: $("c_desc").value, horaires: $("c_hor").value, actif: $("c_act").value === "1",
     });
-    await loadChantiers(out.fields.Slug);
+    await loadChantiers(isManager() ? undefined : out.fields.Slug);
   } catch (e) { err(e.message); }
+}
+
+// ---------- Accès gestionnaire (admin) ----------
+const fmtDate = (ms) => new Date(ms).toLocaleDateString("fr-FR");
+async function createInvite() {
+  err();
+  try {
+    const d = await api({ action: "createInvite", slug: cur.Slug, note: $("i_note").value, email: $("i_mail2").value, days: $("i_days").value });
+    lastInvite = { url: location.origin + "/invitation.html?t=" + d.token, expire: d.expire, note: $("i_note").value.trim() };
+    $("inviteUrl").value = lastInvite.url;
+    $("inviteInfo").textContent = "Valable jusqu'au " + fmtDate(d.expire) + ", à usage unique." + ($("i_mail2").value ? " Réservé à " + $("i_mail2").value + "." : "");
+    show("inviteOut", true); $("i_note").value = ""; $("i_mail2").value = "";
+    loadAccess();
+  } catch (e) { err(e.message); }
+}
+function copyText(t) { return navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject(); }
+function copyId(id) { const el = $(id); el.select(); copyText(el.value).catch(() => document.execCommand("copy")); }
+function copyMsg() {
+  const n = lastInvite.note ? " " + lastInvite.note : "";
+  const t = `Bonjour${n},\n\nVoici ton lien pour créer ton accès et compléter les informations du chantier "${cur.Nom || cur.Slug}" :\n${lastInvite.url}\n\nLe lien est à usage unique et valable jusqu'au ${fmtDate(lastInvite.expire)}. Tu choisis ton identifiant et ton mot de passe (12 caractères minimum).`;
+  copyText(t).catch(() => { $("inviteUrl").value = t; $("inviteUrl").select(); });
+}
+async function loadAccess() {
+  try {
+    const [us, inv] = await Promise.all([api({ action: "listUsers", slug: cur.Slug }), api({ action: "listInvites", slug: cur.Slug })]);
+    $("userList").innerHTML = us.map((u) => `
+      <div class="iv row sp"><div><b>${esc(u.identifiant)}</b> <span class="mut">${esc(u.email)}</span>
+      ${u.actif ? '<span class="tag">actif</span>' : '<span class="tag">désactivé</span>'}</div>
+      <div class="row"><button onclick="toggleUser('${u.id}',${!u.actif})">${u.actif ? "Désactiver" : "Réactiver"}</button>
+      <button class="d" onclick="delUser('${u.id}','${esc(u.identifiant)}')">Supprimer</button></div></div>`).join("") ||
+      '<div class="mut">Aucun compte pour l\'instant.</div>';
+    $("invList").innerHTML = inv.map((i) => {
+      const st = i.utilisee ? "utilisée par " + i.utilisePar : i.revoquee ? "annulée" : i.expire < Date.now() ? "expirée" : "en attente (jusqu'au " + fmtDate(i.expire) + ")";
+      const open = !i.utilisee && !i.revoquee && i.expire >= Date.now();
+      return `<div class="iv row sp"><div>${esc(i.note || "—")} <span class="mut">${esc(i.email)}</span> <span class="tag">${esc(st)}</span></div>
+      ${open ? `<button class="d" onclick="revoke('${i.id}')">Annuler le lien</button>` : ""}</div>`;
+    }).join("") || '<div class="mut">Aucune invitation.</div>';
+  } catch (e) { err(e.message); }
+}
+async function revoke(id) { try { await api({ action: "revokeInvite", id }); loadAccess(); } catch (e) { err(e.message); } }
+async function toggleUser(id, actif) { try { await api({ action: "setUserActif", id, actif }); loadAccess(); } catch (e) { err(e.message); } }
+async function delUser(id, name) {
+  if (!confirm("Supprimer définitivement le compte « " + name + " » ? (Pour redonner l'accès, il faudra un nouveau lien.)")) return;
+  try { await api({ action: "deleteUser", id }); loadAccess(); } catch (e) { err(e.message); }
 }
 
 // ---------- QR + affiche ----------
@@ -198,9 +287,9 @@ function dlQr() {
 async function dlAffiche() {
   await document.fonts.load("700 80px Poppins"); await document.fonts.load("400 80px Poppins");
   const W = 1414, H = 2000, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
-  x.fillStyle = "#fff"; x.fillRect(0, 0, W, H); x.textAlign = "center"; x.textBaseline = "alphabetic";
+  x.fillStyle = "#fff"; x.fillRect(0, 0, W, H); x.textBaseline = "alphabetic";
   const P = "#1e1e1c", K = "#6b6b66";
-  const line = (parts, y, size) => { // parts: [[texte, bold, couleur]]
+  const line = (parts, y, size) => {
     const f = (b) => `${b ? 700 : 400} ${size}px Poppins, system-ui, sans-serif`;
     let w = 0; parts.forEach(([t, b]) => { x.font = f(b); w += x.measureText(t + " ").width; });
     let px = (W - w) / 2; x.textAlign = "left";
@@ -210,12 +299,11 @@ async function dlAffiche() {
   line([["les", 0, K], ["intervenants du chantier", 1, P]], 280, 100);
   const S0 = 1240, X0 = (W - S0) / 2, Y0 = 360;
   drawQrOn(x, X0, Y0, S0);
-  // cartouche central blanc (le QR est en correction H : 20 % max masquable)
   const logo = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = "/logo.png"; });
   x.fillStyle = "#fff"; const cw = 340; x.fillRect(W / 2 - cw / 2, Y0 + S0 / 2 - cw / 2, cw, cw);
   const lw = 280; x.drawImage(logo, W / 2 - lw / 2, Y0 + S0 / 2 - lw / 2, lw, lw);
-  line([["Le panneau de chantier", 0, K]], 1830, 88);
-  line([["CONNECTÉ", 1, P]], 1940, 100);
+  line([["Groupe Legendre", 1, P]], 1830, 96);
+  line([["Panneau de chantier", 0, K]], 1940, 88);
   save(c, "affiche-qr-" + cur.Slug + ".png");
 }
 

@@ -1,60 +1,43 @@
 # QR Chantier — Netlify + Airtable
 
-Le QR du panneau pointe vers `https://TON-SITE.netlify.app/c/<slug>` : fiche projet + intervenants groupés (même logique que Viaco), aux couleurs Legendre (logo dans `public/logo.png`).
-Saisie via `/admin.html` (login protégé).
+Le QR du panneau pointe vers `https://TON-SITE.netlify.app/c/<slug>` : fiche projet + intervenants groupés, aux couleurs Legendre.
+Saisie via `/admin.html` (connexion protégée).
 
-## 1. Airtable : 2 tables (noms de champs exacts, sensibles à la casse)
+## Fonctionnement des accès
 
-**Chantiers**
-| Champ | Type |
-|---|---|
-| Slug | Texte (ex. `clinique-du-parc`, minuscules/tirets) |
-| Nom | Texte |
-| Surface | Texte (ex. `9 981 m² SDP`) |
-| Usage | Texte |
-| Adresse | Texte |
-| ImageUrl | URL |
-| Description | Texte long |
-| LienRejoindre | URL (optionnel) |
-| DateDebut | Date (format ISO) |
-| DateFin | Date (format ISO) |
-| Horaires | Texte long |
-| Actif | Case à cocher |
+| Qui | Comment il obtient l'accès | Ce qu'il peut faire |
+|---|---|---|
+| **Admin** (toi) | Compte défini dans la variable Netlify `ADMIN_USERS` | Créer les chantiers, générer le QR, inviter et désactiver des gestionnaires |
+| **Gestionnaire** (ex. Erwan) | Lien d'invitation unique envoyé par l'admin, il crée lui-même son compte | Modifier les infos et les intervenants de **son seul chantier** |
+| **Public** | Scan du QR | Lire la page du chantier (rien d'autre) |
 
-**Intervenants**
-| Champ | Type |
-|---|---|
-| Slug | Texte (= slug du chantier) |
-| Entreprise | Texte |
-| Groupe | Texte (Maître d'ouvrage, Maîtrise d'œuvre, Lot 3 - Gros-œuvre…) |
-| Role | Texte (mandataire, co-traitant…) |
-| Adresse | Texte |
-| Telephone | Texte |
-| Email | Texte (optionnel) |
-| SiteWeb | URL |
-| LogoUrl | URL |
-| Ordre | Nombre |
+Parcours : l'admin crée le chantier → télécharge l'affiche QR → clique « Créer le lien d'invitation » → envoie le lien à la personne → elle choisit identifiant + e-mail + mot de passe → elle complète le chantier.
 
-Les images/logos : champs URL (https). N'utilise pas les pièces jointes Airtable : leurs liens expirent au bout de quelques heures.
+Protections : lien à usage unique et à durée limitée (jeton jamais stocké en clair), possibilité d'imposer l'e-mail du destinataire, mots de passe hachés (scrypt), verrouillage 15 min après 5 échecs, droits revérifiés à chaque action, accès coupé 30 jours après la date de fin du chantier, désactivation immédiate par l'admin.
 
-Token : airtable.com/create/tokens → scopes `data.records:read` + `data.records:write`, limité à cette base.
-Base ID : dans l'URL (`appXXXX`).
+## 1. Airtable : 4 tables (noms de champs exacts, sensibles à la casse)
 
-## 2. Netlify
+**Chantiers** : Slug, Nom, Surface, Usage, Adresse, ImageUrl, Description, LienRejoindre, DateDebut (date), DateFin (date), Horaires, Actif (case à cocher).
 
-1. Dossier sur GitHub → Netlify *Add new site → Import from Git* (ou `netlify deploy --prod`).
-2. Site settings → Environment variables : les 4 variables de `.env.example`.
-3. Redéploie.
+**Intervenants** : Entreprise, Slug, Groupe, Role, Adresse, Telephone, Email, SiteWeb, LogoUrl, Ordre (nombre).
 
-## 3. Utilisation
+**Utilisateurs** (créée automatiquement par les liens d'invitation, ne pas modifier à la main) : Identifiant, Email, Slug, Role, Sel, Hash, Actif, Expire (date, optionnel), Echecs, VerrouJusqua.
 
-- `/admin.html` → connexion → l'admin crée le chantier, la personne de saisie ajoute les entreprises.
-- Bouton « Télécharger l'affiche » : PNG 1414×2000 avec le QR, prêt à imprimer pour le panneau.
+**Invitations** (idem) : Jeton, Slug, Note, EmailInvite, Expire, Utilisee, UtilisePar, Revoquee.
 
-## Sécurité
+Token Airtable : airtable.com/create/tokens → `data.records:read` + `data.records:write`, limité à cette base.
 
-- Token Airtable côté serveur uniquement.
-- Sessions signées HMAC, 12 h. Mots de passe ≥ 14 caractères.
-- L'endpoint public ne renvoie que les champs affichés, pour les chantiers `Actif`.
-- Pas de vraie limitation de débit sur le login (délai de 400 ms).
-- Données publiques : noms, adresses, téléphones. Contacts pros uniquement.
+## 2. Netlify : variables d'environnement
+
+- `AIRTABLE_BASE_ID`, `AIRTABLE_TOKEN`
+- `AUTH_SECRET` : chaîne aléatoire de 40+ caractères
+- `ADMIN_USERS` : `{"raye":{"pass":"…","role":"admin"}}` (admin uniquement)
+- `CONTACT_RGPD` (optionnel) : adresse affichée en bas des pages publiques
+
+## 3. Protection des données (RGPD)
+
+- Les pages publiques n'affichent que des coordonnées **professionnelles** : standard, adresse de l'entreprise, e-mail générique. Pas de mobile ni d'e-mail personnel.
+- Les identifiants et e-mails des gestionnaires ne sont **jamais** publics.
+- Les pages ne sont pas indexées par les moteurs de recherche. Le slug des chantiers contient un suffixe aléatoire (ex. `merignac-x7k2`) pour ne pas être devinable.
+- Renseigner `CONTACT_RGPD` pour offrir un moyen de demander rectification/suppression ; informer les gestionnaires et entreprises de l'affichage de leurs coordonnées.
+- Fin de chantier : décocher « Page publique active » ou supprimer le compte du gestionnaire.

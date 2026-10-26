@@ -21,8 +21,9 @@ exports.handler = async (event) => {
       nom: f.Nom || "", adresse: f.Adresse || "", surface: f.Surface || "", usage: f.Usage || "",
       imageUrl: f.ImageUrl || "", description: f.Description || "", lienRejoindre: f.LienRejoindre || "",
       dateDebut: f.DateDebut || "", dateFin: f.DateFin || "", horaires: f.Horaires || "",
+      contact: process.env.CONTACT_RGPD || "",
       intervenants,
-    }, { "Cache-Control": "public, max-age=60" });
+    },{ "Cache-Control": "public, max-age=60" });
   } catch (e) {
     console.error(e);
     return json(500, { error: "Erreur serveur" });
