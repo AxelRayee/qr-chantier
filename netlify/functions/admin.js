@@ -17,7 +17,11 @@ const imgUrl = (v) => {
   return /^https?:\/\//i.test(s) || /^\/img\/[a-z0-9-]{2,60}\/[a-f0-9]{16}\.(jpg|png)$/.test(s) ? s : "";
 };
 const isRec = (id) => /^rec[A-Za-z0-9]{10,}$/.test(id || "");
-const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
+const isDate = (s) => { // date réelle au format AAAA-MM-JJ
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s || "")) return false;
+  const d = new Date(s + "T00:00:00Z");
+  return !isNaN(d) && d.toISOString().slice(0, 10) === s;
+};
 const ADMIN_ONLY = new Set(["createInvite", "listInvites", "revokeInvite", "listUsers", "setUserActif", "deleteUser", "deleteChantier"]);
 
 const chFields = (b) => ({

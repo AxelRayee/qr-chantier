@@ -15,16 +15,21 @@ const json = (status, body, extra = {}) => ({
   body: JSON.stringify(body),
 });
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function at(table, { method = "GET", id = "", query = "", body } = {}) {
   const url = `https://api.airtable.com/v0/${BASE}/${encodeURIComponent(table)}${id ? "/" + id : ""}${query}`;
-  const res = await fetch(url, {
-    method,
-    headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Airtable ${res.status}: ${data?.error?.message || data?.error || "erreur"}`);
-  return data;
+  for (let essai = 0; ; essai++) {
+    const res = await fetch(url, {
+      method,
+      headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    // Airtable limite à 5 requêtes/s : on réessaie quand il dit « trop vite » (429) ou en cas d'erreur serveur
+    if ((res.status === 429 || res.status >= 500) && essai < 3) { await sleep(300 * (essai + 1) ** 2); continue; }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`Airtable ${res.status}: ${data?.error?.message || data?.error || "erreur"}`);
+    return data;
+  }
 }
 
 const esc = (s) => String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');

@@ -1,9 +1,14 @@
 // Endpoint PUBLIC (lecture seule) : /.netlify/functions/chantier?slug=xxx
 const { json, esc, isSlug, listAll, T_CHANTIERS, T_INTERV } = require("./_lib");
 
+// Petit cache mémoire (30 s) : un QR scanné par beaucoup de monde ne multiplie pas les appels Airtable
+const CACHE = new Map();
+
 exports.handler = async (event) => {
   const slug = (event.queryStringParameters || {}).slug;
   if (!isSlug(slug)) return json(400, { error: "slug invalide" });
+  const hit = CACHE.get(slug);
+  if (hit && Date.now() - hit.t < 30000) return hit.res;
   try {
     const ch = await listAll(T_CHANTIERS, `AND({Slug}="${esc(slug)}",{Actif})`);
     if (!ch.length) return json(404, { error: "Chantier introuvable" });
@@ -17,13 +22,16 @@ exports.handler = async (event) => {
         adresse: x.Adresse || "", telephone: x.Telephone || "", email: x.Email || "",
         siteWeb: x.SiteWeb || "", logo: x.LogoUrl || "",
       }));
-    return json(200, {
+    const res = json(200, {
       nom: f.Nom || "", adresse: f.Adresse || "", surface: f.Surface || "", usage: f.Usage || "",
       imageUrl: f.ImageUrl || "", description: f.Description || "", lienRejoindre: f.LienRejoindre || "",
       dateDebut: f.DateDebut || "", dateFin: f.DateFin || "", horaires: f.Horaires || "",
       contact: process.env.CONTACT_RGPD || "",
       intervenants,
     },{ "Cache-Control": "public, max-age=60" });
+    if (CACHE.size > 200) CACHE.clear();
+    CACHE.set(slug, { t: Date.now(), res });
+    return res;
   } catch (e) {
     console.error(e);
     return json(500, { error: "Erreur serveur" });
