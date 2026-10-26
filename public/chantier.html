@@ -22,6 +22,7 @@ h1{margin:26px 0 0;font-size:1.65rem;line-height:1.22;text-transform:uppercase;l
 main{margin-top:-40px;padding-bottom:20px}
 .fiche{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
 .fiche div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;box-shadow:0 4px 14px rgba(88,18,29,.08)}
+.fiche .wide{grid-column:1/-1}
 .fiche small{display:block;color:var(--bx);font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
 .fiche span{color:var(--ink);font-weight:600;font-size:.93rem}
 .hero{width:100%;border-radius:14px;display:block;margin:6px 0 16px;max-height:340px;object-fit:cover}
@@ -71,7 +72,7 @@ const safeLink = (u) => (/^https?:\/\//i.test(u) ? u : "");
 
     const fiche = el("div", "fiche");
     [["Surface", d.surface], ["Usage", d.usage], ["Adresse", d.adresse]].forEach(([k, v]) => {
-      if (!v) return; const c = el("div"); c.appendChild(el("small", "", k)); c.appendChild(el("span", "", v)); fiche.appendChild(c);
+      if (!v) return; const c = el("div", k === "Adresse" ? "wide" : ""); c.appendChild(el("small", "", k)); c.appendChild(el("span", "", v)); fiche.appendChild(c);
     });
     if (fiche.children.length) app.appendChild(fiche);
 
