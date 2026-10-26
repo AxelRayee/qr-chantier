@@ -20,6 +20,6 @@ exports.handler = async (event) => {
     };
   } catch (e) {
     console.error(e);
-    return { statusCode: 500, body: "Erreur serveur" };
+    return { statusCode: 500, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }, body: "Erreur stockage images : " + String((e && e.message) || e).slice(0, 200) };
   }
 };

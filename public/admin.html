@@ -81,7 +81,7 @@ a{color:#7b1e2b}
     </div>
     <label style="margin-top:8px">Description (un paragraphe par ligne)</label><textarea id="c_desc" rows="4"></textarea>
     <label style="margin-top:8px">Horaires</label><textarea id="c_hor" rows="2" placeholder="Lundi au vendredi : 08h00 - 17h00"></textarea>
-    <div class="row" style="margin-top:10px"><button class="p" onclick="saveCh()">Enregistrer le chantier</button></div>
+    <div class="row" style="margin-top:10px"><button class="p" onclick="saveCh()">Enregistrer le chantier</button><button id="delBtn" class="hide" onclick="delCh()" style="margin-left:auto;color:#c92a2a;border-color:#c92a2a">Supprimer le chantier</button></div>
   </div>
 
   <div id="accCard" class="card hide">
@@ -201,7 +201,7 @@ async function loadChantiers(keep) {
 function selectCh() {
   const slug = $("chSel").value;
   cur = chantiers.find((c) => c.Slug === slug) || null;
-  show("chForm", !!cur); show("accCard", !!cur && isAdmin()); show("qrCard", !!cur); show("ivCard", !!cur); show("ivForm", false);
+  show("chForm", !!cur); show("accCard", !!cur && isAdmin()); show("qrCard", !!cur); show("delBtn", isAdmin() && !!cur && !!cur.id); show("ivCard", !!cur); show("ivForm", false);
   show("inviteOut", false);
   if (!cur) return;
   fillCh(cur); lockFields(true); drawQr(); loadIv(); if (isAdmin()) loadAccess();
@@ -220,13 +220,21 @@ function fillCh(c) {
 const slugify = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
 const rand4 = () => Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => "abcdefghjkmnpqrstuvwxyz23456789"[b % 31]).join("");
 function newCh() {
-  cur = { id: null }; $("chSel").value = ""; fillCh({ Actif: true }); lockFields(false);
+  cur = { id: null }; show("delBtn", false); $("chSel").value = ""; fillCh({ Actif: true }); lockFields(false);
   show("chForm", true); show("qrCard", false); show("ivCard", false); show("ivForm", false); show("accCard", false);
 }
 // Slug suggéré avec suffixe aléatoire : l'adresse n'est pas devinable
 $("c_nom").addEventListener("blur", () => {
   if (cur && !cur.id && !$("c_slug").value && $("c_nom").value) $("c_slug").value = (slugify($("c_nom").value) || "chantier") + "-" + rand4();
 });
+async function delCh() {
+  if (!isAdmin() || !cur || !cur.id) return;
+  const rep = prompt("Supprimer DÉFINITIVEMENT « " + (cur.Nom || cur.Slug) + " » avec ses intervenants, invitations, comptes gestionnaires et images ?\nLe QR code déjà imprimé ne fonctionnera plus.\n\nTape SUPPRIMER pour confirmer :");
+  if (rep !== "SUPPRIMER") return;
+  err();
+  try { await api({ action: "deleteChantier", id: cur.id }); cur = null; await loadChantiers(); selectCh(); }
+  catch (e) { err(e.message); }
+}
 async function saveCh() {
   err();
   try {

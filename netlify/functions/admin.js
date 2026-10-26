@@ -18,7 +18,7 @@ const imgUrl = (v) => {
 };
 const isRec = (id) => /^rec[A-Za-z0-9]{10,}$/.test(id || "");
 const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
-const ADMIN_ONLY = new Set(["createInvite", "listInvites", "revokeInvite", "listUsers", "setUserActif", "deleteUser"]);
+const ADMIN_ONLY = new Set(["createInvite", "listInvites", "revokeInvite", "listUsers", "setUserActif", "deleteUser", "deleteChantier"]);
 
 const chFields = (b) => ({
   Nom: clean(b.nom), Adresse: clean(b.adresse), Surface: clean(b.surface, 60), Usage: clean(b.usage, 120),
@@ -179,6 +179,26 @@ exports.handler = async (event) => {
       case "deleteUser": {
         if (!isRec(b.id)) return json(400, { error: "id invalide" });
         await at(T_USERS, { method: "DELETE", id: b.id });
+        return json(200, { ok: true });
+      }
+
+      // ----- Admin : suppression complète d'un chantier (fiche, intervenants, invitations, comptes gestionnaires, images) -----
+      case "deleteChantier": {
+        if (!isRec(b.id)) return json(400, { error: "id invalide" });
+        const ch = await at(T_CHANTIERS, { id: b.id });
+        const sl = ch.fields && ch.fields.Slug;
+        if (!isSlug(sl)) return json(400, { error: "Chantier invalide" });
+        const q = `{Slug}="${esc(sl)}"`;
+        for (const T of [T_INTERV, T_INVITES, T_USERS]) {
+          for (const r of await listAll(T, q)) await at(T, { method: "DELETE", id: r.id });
+        }
+        await at(T_CHANTIERS, { method: "DELETE", id: b.id });
+        try { // images : échec non bloquant
+          connectLambda(event);
+          const st = getStore("images");
+          const { blobs } = await st.list({ prefix: sl + "/" });
+          for (const x of blobs) await st.delete(x.key);
+        } catch (e) { console.error("purge images", e); }
         return json(200, { ok: true });
       }
 
