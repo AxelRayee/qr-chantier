@@ -54,6 +54,8 @@ const $ = (id) => document.getElementById(id);
 const el = (t, c, txt) => { const e = document.createElement(t); if (c) e.className = c; if (txt != null) e.textContent = txt; return e; };
 const fmt = (d) => d ? d.split("-").reverse().join("/") : "";
 const safeUrl = (u) => (/^(https?:\/\/|\/img\/)/i.test(u) ? u : "");
+// images envoyées depuis l'admin : on passe directement par la fonction (sans dépendre d'une redirection)
+const imgSrc = (u) => (u.startsWith("/img/") ? "/.netlify/functions/img?k=" + encodeURIComponent(u.slice(5)) : u);
 const safeLink = (u) => (/^https?:\/\//i.test(u) ? u : "");
 
 (async () => {
@@ -71,7 +73,7 @@ const safeLink = (u) => (/^https?:\/\//i.test(u) ? u : "");
     });
     if (fiche.children.length) app.appendChild(fiche);
 
-    if (safeUrl(d.imageUrl)) { const i = el("img", "hero"); i.src = d.imageUrl; i.alt = d.nom; app.appendChild(i); }
+    if (safeUrl(d.imageUrl)) { const i = el("img", "hero"); i.src = imgSrc(d.imageUrl); i.alt = d.nom; app.appendChild(i); }
     (d.description || "").split(/\n+/).filter(Boolean).forEach((t) => app.appendChild(el("p", "", t)));
     if (safeLink(d.lienRejoindre)) { const a = el("a", "cta", "Rejoindre le projet"); a.href = d.lienRejoindre; a.rel = "noopener"; app.appendChild(a); }
 
@@ -83,7 +85,7 @@ const safeLink = (u) => (/^https?:\/\//i.test(u) ? u : "");
       app.appendChild(el("h3", "grp", g));
       list.forEach((x) => {
         const c = el("div", "card");
-        if (safeUrl(x.logo)) { const i = el("img"); i.src = x.logo; i.alt = ""; i.loading = "lazy"; c.appendChild(i); }
+        if (safeUrl(x.logo)) { const i = el("img"); i.src = imgSrc(x.logo); i.alt = ""; i.loading = "lazy"; c.appendChild(i); }
         const b = el("div");
         b.appendChild(el("div", "n", x.entreprise));
         if (x.role) b.appendChild(el("div", "r", x.role));

@@ -2,12 +2,18 @@
 const { connectLambda, getStore } = require("@netlify/blobs");
 
 exports.handler = async (event) => {
-  const k = (event.queryStringParameters || {}).k || "";
-  if (!/^[a-z0-9-]{2,60}\/[a-f0-9]{16}\.(jpg|png)$/.test(k)) return { statusCode: 404, body: "Introuvable" };
+  const OK = /^[a-z0-9-]{2,60}\/[a-f0-9]{16}\.(jpg|png)$/;
+  const TXT = { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" };
+  let k = String((event.queryStringParameters || {}).k || "");
+  if (!OK.test(k)) { // repli : clé lue dans l'adresse d'origine (/img/<slug>/<id>.jpg)
+    const m = String(event.rawUrl || event.path || "").match(/\/img\/([a-z0-9-]{2,60}\/[a-f0-9]{16}\.(?:jpg|png))/);
+    if (m) k = m[1];
+  }
+  if (!OK.test(k)) return { statusCode: 404, headers: TXT, body: "Adresse d'image invalide : " + k.slice(0, 80) };
   try {
     connectLambda(event);
     const data = await getStore("images").get(k, { type: "arrayBuffer" });
-    if (!data) return { statusCode: 404, body: "Introuvable" };
+    if (!data) return { statusCode: 404, headers: TXT, body: "Image absente du stockage : " + k };
     return {
       statusCode: 200,
       headers: {
