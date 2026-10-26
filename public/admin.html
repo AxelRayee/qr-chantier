@@ -37,12 +37,17 @@ label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:2px}
 .topin img{width:38px;height:38px}
 input:focus,select:focus,textarea:focus{outline:2px solid #7b1e2b33;border-color:#7b1e2b}
 h2{color:#7b1e2b}
+#chSt{font-size:.85rem;font-weight:600}
+#chSt.ok{color:#2b8a3e}#chSt.dirty{color:#d9480f}#chSt.bad{color:#c92a2a}#chSt.wait{color:#85857f}
+#flash{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#2a1a1c;color:#fff;padding:10px 18px;border-radius:999px;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:9}
+#flash.on{opacity:.95}
 a{color:#7b1e2b}
 .hide{display:none}
 </style></head>
 <body>
 <div class="top"><div class="topin"><img src="/logo-blanc.png" alt="Legendre"><span><b>Groupe Legendre</b> · Panneau de chantier</span></div></div>
 <input type="file" id="file" accept="image/png,image/jpeg,image/webp" class="hide">
+<div id="flash" role="status" aria-live="polite"></div>
 <div class="w">
 
 <div id="loginV" class="card" style="max-width:360px;margin:60px auto">
@@ -81,7 +86,7 @@ a{color:#7b1e2b}
     </div>
     <label style="margin-top:8px">Description (un paragraphe par ligne)</label><textarea id="c_desc" rows="4"></textarea>
     <label style="margin-top:8px">Horaires</label><textarea id="c_hor" rows="2" placeholder="Lundi au vendredi : 08h00 - 17h00"></textarea>
-    <div class="row" style="margin-top:10px"><button class="p" onclick="saveCh()">Enregistrer le chantier</button><button id="delBtn" class="hide" onclick="delCh()" style="margin-left:auto;color:#c92a2a;border-color:#c92a2a">Supprimer le chantier</button></div>
+    <div class="row" style="margin-top:10px"><button class="p" onclick="saveCh()">Enregistrer le chantier</button><span id="chSt" role="status" aria-live="polite"></span><button id="delBtn" class="hide" onclick="delCh()" style="margin-left:auto;color:#c92a2a;border-color:#c92a2a">Supprimer le chantier</button></div>
   </div>
 
   <div id="accCard" class="card hide">
@@ -199,11 +204,13 @@ async function loadChantiers(keep) {
   } catch (e) { err(e.message); if (S) { /* accès coupé */ } }
 }
 function selectCh() {
+  if (dirty && cur && cur.id) saveCh(true); // enregistre le chantier précédent avant de changer
   const slug = $("chSel").value;
   cur = chantiers.find((c) => c.Slug === slug) || null;
   show("chForm", !!cur); show("accCard", !!cur && isAdmin()); show("qrCard", !!cur); show("delBtn", isAdmin() && !!cur && !!cur.id); show("ivCard", !!cur); show("ivForm", false);
   show("inviteOut", false);
   if (!cur) return;
+  setSt("ok", "✔ À jour");
   fillCh(cur); lockFields(true); drawQr(); loadIv(); if (isAdmin()) loadAccess();
 }
 function lockFields(existing) {
@@ -222,6 +229,7 @@ const rand4 = () => Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) =>
 function newCh() {
   cur = { id: null }; show("delBtn", false); $("chSel").value = ""; fillCh({ Actif: true }); lockFields(false);
   show("chForm", true); show("qrCard", false); show("ivCard", false); show("ivForm", false); show("accCard", false);
+  setSt("wait", "Nouveau chantier : renseigne le nom puis clique « Enregistrer le chantier »");
 }
 // Slug suggéré avec suffixe aléatoire : l'adresse n'est pas devinable
 $("c_nom").addEventListener("blur", () => {
@@ -235,17 +243,49 @@ async function delCh() {
   try { await api({ action: "deleteChantier", id: cur.id }); cur = null; await loadChantiers(); selectCh(); }
   catch (e) { err(e.message); }
 }
-async function saveCh() {
-  err();
+// ----- Enregistrement : automatique (1,5 s après la dernière modification) + indicateur d'état -----
+const CH_MAP = { c_slug: "Slug", c_nom: "Nom", c_surf: "Surface", c_usage: "Usage", c_adr: "Adresse", c_img: "ImageUrl",
+  c_deb: "DateDebut", c_fin: "DateFin", c_join: "LienRejoindre", c_desc: "Description", c_hor: "Horaires" };
+let dirty = false, dirtySince = null, saving = false, autoT = null;
+const hhmm = (d) => d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+function setSt(cls, txt) { const e = $("chSt"); e.className = cls; e.textContent = txt; }
+function flash(txt) { const f = $("flash"); f.textContent = txt; f.classList.add("on"); clearTimeout(flash.t); flash.t = setTimeout(() => f.classList.remove("on"), 2500); }
+function markDirty() {
+  if (!dirty) { dirty = true; dirtySince = new Date(); }
+  if (cur && cur.id) {
+    setSt("dirty", "● Non enregistré depuis " + hhmm(dirtySince) + " — enregistrement auto…");
+    clearTimeout(autoT); autoT = setTimeout(() => saveCh(true), 1500);
+  } else setSt("dirty", "● Non enregistré depuis " + hhmm(dirtySince));
+}
+document.addEventListener("input", (e) => { if (e.target.closest && e.target.closest("#chForm") && e.target.id !== "file") markDirty(); });
+document.addEventListener("change", (e) => { if (e.target.closest && e.target.closest("#chForm") && e.target.tagName === "SELECT") markDirty(); });
+window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+async function saveCh(auto) {
+  const target = cur; if (!target) return;
+  if (saving) { clearTimeout(autoT); autoT = setTimeout(() => { if (cur === target) saveCh(true); }, 800); return; }
+  clearTimeout(autoT); err();
+  const vals = {}; for (const k in CH_MAP) vals[k] = $(k).value;
+  const actif = $("c_act").value === "1", wasSince = dirtySince;
+  dirty = false; saving = true; setSt("wait", "Enregistrement…");
   try {
     const out = await api({
-      action: "saveChantier", id: cur && cur.id, slug: $("c_slug").value.trim().toLowerCase(), nom: $("c_nom").value,
-      surface: $("c_surf").value, usage: $("c_usage").value, adresse: $("c_adr").value, imageUrl: $("c_img").value,
-      dateDebut: $("c_deb").value, dateFin: $("c_fin").value, lienRejoindre: $("c_join").value,
-      description: $("c_desc").value, horaires: $("c_hor").value, actif: $("c_act").value === "1",
+      action: "saveChantier", id: target.id, slug: vals.c_slug.trim().toLowerCase(), nom: vals.c_nom,
+      surface: vals.c_surf, usage: vals.c_usage, adresse: vals.c_adr, imageUrl: vals.c_img,
+      dateDebut: vals.c_deb, dateFin: vals.c_fin, lienRejoindre: vals.c_join,
+      description: vals.c_desc, horaires: vals.c_hor, actif,
     });
-    await loadChantiers(isManager() ? undefined : out.fields.Slug);
-  } catch (e) { err(e.message); }
+    if (!target.id) { saving = false; await loadChantiers(isManager() ? undefined : out.fields.Slug); }
+    else { for (const k in CH_MAP) target[CH_MAP[k]] = vals[k]; target.Actif = actif; }
+    const now = new Date(), changed = dirty; // dirty = true si on a retouché pendant l'envoi
+    setSt(changed ? "dirty" : "ok", changed ? "● Non enregistré depuis " + hhmm(dirtySince) : "✔ Enregistré à " + hhmm(now));
+    if (!changed) flash("✔ Chantier enregistré à " + hhmm(now));
+    if (changed) { clearTimeout(autoT); autoT = setTimeout(() => saveCh(true), 1500); }
+    if (target === cur) { const o = [...$("chSel").options].find((x) => x.value === target.Slug); if (o) o.textContent = vals.c_nom || target.Slug; }
+  } catch (e) {
+    dirty = true; dirtySince = wasSince || new Date();
+    setSt("bad", "⚠ Échec de l'enregistrement (modifs non enregistrées depuis " + hhmm(dirtySince) + ")"); err(e.message);
+  } finally { saving = false; }
 }
 
 // ---------- Accès gestionnaire (admin) ----------
@@ -355,7 +395,8 @@ $("file").addEventListener("change", async () => {
     const type = png ? "image/png" : "image/jpeg";
     const d = await api({ action: "uploadImage", slug, type, data: c.toDataURL(type, 0.85).split(",")[1] });
     $(t.id).value = d.url;
-    if (st) st.textContent = "Image envoyée ✔ — clique sur « Enregistrer » pour la publier.";
+    if (st) st.textContent = "Image envoyée ✔";
+    markDirty();
   } catch (e) { if (st) st.textContent = ""; err(e.message || "Envoi impossible (image illisible ?)"); }
 });
 
@@ -388,12 +429,12 @@ async function saveIv() {
       role: $("i_role").value, adresse: $("i_adr").value, telephone: $("i_tel").value, email: $("i_mail").value,
       siteWeb: $("i_web").value, logo: $("i_logo").value, ordre: $("i_ordre").value,
     });
-    show("ivForm", false); loadIv();
+    show("ivForm", false); loadIv(); flash("✔ Intervenant enregistré à " + hhmm(new Date()));
   } catch (e) { err(e.message); }
 }
 async function delIv(i) {
   if (!confirm("Supprimer " + ivs[i].Entreprise + " ?")) return;
-  try { await api({ action: "deleteIntervenant", id: ivs[i].id }); loadIv(); } catch (e) { err(e.message); }
+  try { await api({ action: "deleteIntervenant", id: ivs[i].id }); loadIv(); flash("✔ Intervenant supprimé"); } catch (e) { err(e.message); }
 }
 
 if (S) start();
