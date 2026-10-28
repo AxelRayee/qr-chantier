@@ -118,6 +118,7 @@ a{color:#7b1e2b}
         <div class="mut" id="qrUrl" style="word-break:break-all"></div>
         <div class="row" style="margin-top:10px">
           <button class="p" onclick="dlAffiche()">Télécharger l'affiche (PNG)</button>
+          <button onclick="dlAffiche(true)">Affiche sans logo (PNG)</button>
           <button onclick="dlQr()">QR seul (PNG)</button>
         </div>
         <div class="mut small" style="margin-top:8px">Affiche 1414×2000 px : à imprimer en A4/A3 sur le panneau. Le QR ne change jamais tant que l'adresse du chantier ne change pas.</div>
@@ -350,7 +351,7 @@ function dlQr() {
   const c = document.createElement("canvas"); c.width = c.height = 1000; const x = c.getContext("2d");
   x.fillStyle = "#fff"; x.fillRect(0, 0, 1000, 1000); drawQrOn(x, 60, 60, 880); save(c, "qr-" + cur.Slug + ".png");
 }
-async function dlAffiche() {
+async function dlAffiche(sansLogo) { // sansLogo : version neutre, sans logo Legendre ni « Groupe Legendre »
   await document.fonts.load("700 80px Poppins"); await document.fonts.load("400 80px Poppins");
   const W = 1414, H = 2000, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
   x.fillStyle = "#fff"; x.fillRect(0, 0, W, H); x.textBaseline = "alphabetic";
@@ -368,12 +369,16 @@ async function dlAffiche() {
   line([["les", 0, K], ["intervenants du chantier", 1, P]], 270, 78);
   const S0 = 1240, X0 = (W - S0) / 2, Y0 = 360;
   drawQrOn(x, X0, Y0, S0);
-  const logo = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = "/logo.png"; });
-  x.fillStyle = "#fff"; const cw = 340; x.fillRect(W / 2 - cw / 2, Y0 + S0 / 2 - cw / 2, cw, cw);
-  const lw = 280; x.drawImage(logo, W / 2 - lw / 2, Y0 + S0 / 2 - lw / 2, lw, lw);
-  line([["Groupe Legendre", 1, P]], 1830, 96);
-  line([["Panneau de chantier", 0, K]], 1940, 88);
-  save(c, "affiche-qr-" + cur.Slug + ".png");
+  if (!sansLogo) {
+    const logo = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = "/logo.png"; });
+    x.fillStyle = "#fff"; const cw = 340; x.fillRect(W / 2 - cw / 2, Y0 + S0 / 2 - cw / 2, cw, cw);
+    const lw = 280; x.drawImage(logo, W / 2 - lw / 2, Y0 + S0 / 2 - lw / 2, lw, lw);
+    line([["Groupe Legendre", 1, P]], 1830, 96);
+    line([["Panneau de chantier", 0, K]], 1940, 88);
+  } else {
+    line([["Panneau de chantier", 1, P]], 1860, 96); // QR entier, sans logo au centre
+  }
+  save(c, (sansLogo ? "affiche-qr-sans-logo-" : "affiche-qr-") + cur.Slug + ".png");
 }
 
 // ---------- Envoi d'image (redimensionnée dans le navigateur avant envoi) ----------
