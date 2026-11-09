@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light">
+<title>Nouveau mot de passe</title>
+<link rel="icon" href="/logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#faf6f6;--card:#fff;--ink:#2a1a1c;--mut:#8a7478;--acc:#7b1e2b;--line:#ecdde0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Poppins,system-ui,sans-serif}
+.w{max-width:460px;margin:0 auto;padding:24px 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+h1{font-size:1.2rem;margin:0 0 6px;color:#7b1e2b}
+p{margin:0 0 12px}
+.mut{color:var(--mut);font-size:.85rem}
+label{display:block;font-size:.8rem;color:var(--mut);margin:12px 0 3px}
+input,button{font:inherit;padding:10px 12px;border-radius:8px;border:1px solid var(--line);width:100%;background:#fff;color:var(--ink)}
+input:focus{outline:2px solid #7b1e2b33;border-color:#7b1e2b}
+button{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600;cursor:pointer;margin-top:16px}
+button:disabled{opacity:.5;cursor:default}
+.err{color:#c92a2a;min-height:1.3em;margin-top:8px;font-size:.9rem}
+.hide{display:none}
+.top{background:linear-gradient(135deg,#7b1e2b,#58121d);color:#fff}
+.topin{max-width:460px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px;font-size:.9rem}
+.topin img{width:38px;height:38px}
+.links{display:flex;justify-content:space-between;gap:10px;margin-top:12px;font-size:.85rem}
+.links a,.sw a{color:#7b1e2b}
+.sw{text-align:center;font-size:.9rem;margin-top:4px}
+</style></head>
+<body>
+<div class="top"><div class="topin"><img src="/logo-blanc.png" alt="Legendre"><span><b>Groupe Legendre</b> · Panneau de chantier</span></div></div>
+<div class="w">
+  <div id="load" class="card">Vérification du lien…</div>
+  <div id="bad" class="card hide"><h1>Lien invalide</h1><p>Ce lien de réinitialisation a expiré ou a déjà servi.</p><p class="mut">Refais une demande depuis la page de connexion, ou demande un nouveau lien à l'administrateur.</p><a href="/admin.html#mdp" style="color:#7b1e2b">Refaire une demande</a></div>
+  <div id="form" class="card hide">
+    <h1>Nouveau mot de passe</h1>
+    <p>Identifiant : <b id="ident"></b></p>
+    <label>Nouveau mot de passe (12 caractères minimum)</label>
+    <input id="pw" type="password" autocomplete="new-password">
+    <label>Confirmer le mot de passe</label>
+    <input id="pw2" type="password" autocomplete="new-password" onkeydown="if(event.key==='Enter')go()">
+    <button id="go" onclick="go()">Enregistrer et me connecter</button>
+    <div class="err" id="err"></div>
+    <p class="mut" style="margin-top:12px">Ce lien ne fonctionne qu'une fois. Les autres appareils connectés à ton compte seront déconnectés.</p>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const show = (id, v) => $(id).classList.toggle("hide", !v);
+const T = new URLSearchParams(location.search).get("t") || "";
+history.replaceState(null, "", location.pathname); // retire le jeton de la barre d'adresse
+async function post(fn, body) {
+  const r = await fetch("/.netlify/functions/" + fn, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || "Erreur");
+  return d;
+}
+(async () => {
+  try { const d = await post("compte", { action: "check", t: T }); $("ident").textContent = d.identifiant; show("load", false); show("form", true); }
+  catch { show("load", false); show("bad", true); }
+})();
+async function go() {
+  $("err").textContent = "";
+  const pw = $("pw").value;
+  if (pw.length < 12) return ($("err").textContent = "Mot de passe : 12 caractères minimum.");
+  if (pw !== $("pw2").value) return ($("err").textContent = "Les deux mots de passe sont différents.");
+  $("go").disabled = true;
+  let ident;
+  try { ident = (await post("compte", { action: "reset", t: T, password: pw })).identifiant; }
+  catch (e) { $("err").textContent = e.message; $("go").disabled = false; return; }
+  try {
+    const S = await post("admin", { action: "login", user: ident, pass: pw });
+    try { sessionStorage.setItem("s", JSON.stringify(S)); } catch {}
+    location.href = "/admin.html";
+  } catch { location.href = "/admin.html"; }
+}
+</script>
+</body></html>

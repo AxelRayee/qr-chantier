@@ -56,6 +56,18 @@ a{color:#7b1e2b}
   <label style="margin-top:8px">Mot de passe</label><input id="p" type="password" autocomplete="current-password">
   <div class="row" style="margin-top:12px"><button class="p" onclick="doLogin()">Se connecter</button></div>
   <div class="err" id="lerr"></div>
+  <div class="row sp small" style="margin-top:4px"><a href="#mdp" onclick="oubli('mdp');return false">Mot de passe oublié ?</a><a href="#id" onclick="oubli('id');return false">Identifiant oublié ?</a></div>
+  <div id="oubliMdp" class="hide" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+    <b class="small">Mot de passe oublié</b>
+    <label>Ton identifiant ou ton e-mail</label><input id="o_q" autocapitalize="none" spellcheck="false">
+    <div class="row" style="margin-top:8px"><button class="p" onclick="envoyerOubli('forgot')">Recevoir un lien</button></div>
+  </div>
+  <div id="oubliId" class="hide" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+    <b class="small">Identifiant oublié</b>
+    <label>Ton adresse e-mail</label><input id="o_m" type="email" autocapitalize="none">
+    <div class="row" style="margin-top:8px"><button class="p" onclick="envoyerOubli('forgotId')">Recevoir mon identifiant</button></div>
+  </div>
+  <div id="oubliMsg" class="small" style="margin-top:8px"></div>
 </div>
 
 <div id="appV" class="hide">
@@ -185,6 +197,25 @@ async function doLogin() {
     start();
   } catch (e) { $("lerr").textContent = e.message; }
 }
+// ----- Mot de passe / identifiant oublié -----
+function oubli(k) {
+  show("oubliMdp", k === "mdp"); show("oubliId", k === "id"); $("oubliMsg").textContent = "";
+  if (k === "mdp" && !$("o_q").value) $("o_q").value = $("u").value;
+}
+async function envoyerOubli(action) {
+  const v = action === "forgot" ? $("o_q").value : $("o_m").value;
+  $("oubliMsg").textContent = "Envoi…";
+  try {
+    const r = await fetch("/.netlify/functions/compte", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, q: v, email: v }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || "Erreur");
+    $("oubliMsg").textContent = d.mode === "email"
+      ? "Si un compte correspond, un e-mail vient de t'être envoyé (pense à regarder dans les indésirables). Sinon, contacte l'administrateur."
+      : "Demande enregistrée. L'administrateur va t'envoyer un lien pour choisir un nouveau mot de passe ; il connaît aussi ton identifiant.";
+  } catch (e) { $("oubliMsg").textContent = e.message; }
+}
+if (location.hash === "#mdp" || location.hash === "#id") setTimeout(() => oubli(location.hash.slice(1)), 0);
+
 function logout() { try { sessionStorage.removeItem("s"); } catch {} S = null; show("appV", false); show("loginV", true); }
 
 async function start() {
@@ -306,7 +337,11 @@ function copyText(t) { return navigator.clipboard ? navigator.clipboard.writeTex
 function copyId(id) { const el = $(id); el.select(); copyText(el.value).catch(() => document.execCommand("copy")); }
 function copyMsg() {
   const n = lastInvite.note ? " " + lastInvite.note : "";
-  const t = `Bonjour${n},\n\nVoici ton lien pour créer ton accès et compléter les informations du chantier "${cur.Nom || cur.Slug}" :\n${lastInvite.url}\n\nLe lien est à usage unique et valable jusqu'au ${fmtDate(lastInvite.expire)}. Tu choisis ton identifiant et ton mot de passe (12 caractères minimum).`;
+  if (lastInvite.reset) {
+    const r = `Bonjour,\n\nVoici ton lien pour choisir un nouveau mot de passe (chantier "${cur.Nom || cur.Slug}") :\n${lastInvite.url}\n\nTon identifiant : ${lastInvite.note}\nLe lien est valable 72 h et ne sert qu'une fois.`;
+    return copyText(r).catch(() => { $("inviteUrl").value = r; $("inviteUrl").select(); });
+  }
+  const t = `Bonjour${n},\n\nVoici ton lien pour créer ton accès et compléter les informations du chantier "${cur.Nom || cur.Slug}" :\n${lastInvite.url}\n\nLe lien est à usage unique et valable jusqu'au ${fmtDate(lastInvite.expire)}. Tu choisis ton identifiant et ton mot de passe (12 caractères minimum).\n\nPour te reconnecter ensuite : ${location.origin}/admin.html (ou ce même lien, qui mène à la page de connexion une fois ton compte créé).`;
   copyText(t).catch(() => { $("inviteUrl").value = t; $("inviteUrl").select(); });
 }
 async function loadAccess() {
@@ -314,8 +349,10 @@ async function loadAccess() {
     const [us, inv] = await Promise.all([api({ action: "listUsers", slug: cur.Slug }), api({ action: "listInvites", slug: cur.Slug })]);
     $("userList").innerHTML = us.map((u) => `
       <div class="iv row sp"><div><b>${esc(u.identifiant)}</b> <span class="mut">${esc(u.email)}</span>
-      ${u.actif ? '<span class="tag">actif</span>' : '<span class="tag">désactivé</span>'}</div>
-      <div class="row"><button onclick="toggleUser('${u.id}',${!u.actif})">${u.actif ? "Désactiver" : "Réactiver"}</button>
+      ${u.actif ? '<span class="tag">actif</span>' : '<span class="tag">désactivé</span>'}
+      ${u.demande ? '<span class="tag" style="background:#fff4e6;color:#d9480f">⚠ a demandé de l\'aide le ' + esc(fmtDate(u.demande)) + "</span>" : ""}
+      ${u.lienReinit ? '<span class="tag">lien de réinitialisation en cours</span>' : ""}</div>
+      <div class="row"><button onclick="resetLink('${u.id}')">Lien nouveau mot de passe</button><button onclick="toggleUser('${u.id}',${!u.actif})">${u.actif ? "Désactiver" : "Réactiver"}</button>
       <button class="d" onclick="delUser('${u.id}','${esc(u.identifiant)}')">Supprimer</button></div></div>`).join("") ||
       '<div class="mut">Aucun compte pour l\'instant.</div>';
     $("invList").innerHTML = inv.map((i) => {
@@ -324,6 +361,17 @@ async function loadAccess() {
       return `<div class="iv row sp"><div>${esc(i.note || "—")} <span class="mut">${esc(i.email)}</span> <span class="tag">${esc(st)}</span></div>
       ${open ? `<button class="d" onclick="revoke('${i.id}')">Annuler le lien</button>` : ""}</div>`;
     }).join("") || '<div class="mut">Aucune invitation.</div>';
+  } catch (e) { err(e.message); }
+}
+async function resetLink(id) {
+  try {
+    const d = await api({ action: "resetLink", id });
+    const url = location.origin + "/reinit.html?t=" + d.token;
+    $("inviteUrl").value = url;
+    $("inviteInfo").textContent = "Lien de réinitialisation pour « " + d.identifiant + " »" + (d.email ? " (" + d.email + ")" : "") + " : valable 72 h, une seule utilisation. Son identifiant : " + d.identifiant + ".";
+    lastInvite = { url, note: d.identifiant, reset: true };
+    show("inviteOut", true); $("inviteOut").scrollIntoView({ behavior: "smooth", block: "center" });
+    loadAccess();
   } catch (e) { err(e.message); }
 }
 async function revoke(id) { try { await api({ action: "revokeInvite", id }); loadAccess(); } catch (e) { err(e.message); } }

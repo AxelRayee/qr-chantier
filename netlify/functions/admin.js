@@ -5,7 +5,7 @@
 const crypto = require("crypto");
 const { connectLambda, getStore } = require("@netlify/blobs");
 const {
-  json, at, esc, isSlug, sha256, listAll, login, auth, checkManager,
+  json, at, esc, isSlug, sha256, listAll, login, auth, checkManager, newToken,
   T_CHANTIERS, T_INTERV, T_USERS, T_INVITES,
 } = require("./_lib");
 
@@ -22,7 +22,7 @@ const isDate = (s) => { // date réelle au format AAAA-MM-JJ
   const d = new Date(s + "T00:00:00Z");
   return !isNaN(d) && d.toISOString().slice(0, 10) === s;
 };
-const ADMIN_ONLY = new Set(["createInvite", "listInvites", "revokeInvite", "listUsers", "setUserActif", "deleteUser", "deleteChantier"]);
+const ADMIN_ONLY = new Set(["createInvite", "listInvites", "revokeInvite", "listUsers", "setUserActif", "deleteUser", "deleteChantier", "resetLink"]);
 
 const chFields = (b) => ({
   Nom: clean(b.nom), Adresse: clean(b.adresse), Surface: clean(b.surface, 60), Usage: clean(b.usage, 120),
@@ -171,6 +171,7 @@ exports.handler = async (event) => {
         return json(200, r.map((x) => ({
           id: x.id, identifiant: x.fields.Identifiant || "", email: x.fields.Email || "",
           actif: !!x.fields.Actif, expire: x.fields.Expire || "",
+          demande: x.fields.ResetDemande || 0, lienReinit: (x.fields.ResetExpire || 0) > Date.now(),
         })));
       }
 
@@ -178,6 +179,16 @@ exports.handler = async (event) => {
         if (!isRec(b.id)) return json(400, { error: "id invalide" });
         await at(T_USERS, { method: "PATCH", id: b.id, body: { fields: { Actif: !!b.actif } } });
         return json(200, { ok: true });
+      }
+
+      // ----- Admin : lien de réinitialisation à transmettre soi-même (valable 72 h, usage unique) -----
+      case "resetLink": {
+        if (!isRec(b.id)) return json(400, { error: "id invalide" });
+        const u = await at(T_USERS, { id: b.id });
+        if (!u.fields || u.fields.Role !== "manager") return json(400, { error: "Compte invalide" });
+        const token = newToken();
+        await at(T_USERS, { method: "PATCH", id: b.id, body: { fields: { ResetHash: sha256(token), ResetExpire: Date.now() + 72 * 3600e3 } } });
+        return json(200, { token, identifiant: u.fields.Identifiant, email: u.fields.Email || "" });
       }
 
       case "deleteUser": {

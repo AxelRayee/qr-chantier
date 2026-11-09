@@ -39,6 +39,14 @@
     Cache-Control = "no-store"
 
 [[headers]]
+  for = "/reinit.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"
+    Cache-Control = "no-store"
+
+[[headers]]
   for = "/chantier.html"
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"

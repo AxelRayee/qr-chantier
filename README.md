@@ -33,11 +33,14 @@ Token Airtable : airtable.com/create/tokens → `data.records:read` + `data.reco
 - `AUTH_SECRET` : chaîne aléatoire de 40+ caractères
 - `ADMIN_USERS` : `{"raye":{"pass":"…","role":"admin"}}` (admin uniquement)
 - `CONTACT_RGPD` (optionnel) : adresse affichée en bas des pages publiques
+- `BREVO_API_KEY` + `MAIL_FROM` (optionnels) : envoi automatique des e-mails « mot de passe oublié » / « identifiant oublié » via Brevo. `MAIL_FROM` doit être une adresse expéditrice validée dans Brevo. `MAIL_FROM_NAME` (optionnel) : nom de l'expéditeur. `SITE_URL` (optionnel) : adresse du site dans les liens envoyés (sinon la variable `URL` fournie par Netlify).
+  Sans ces variables, une demande d'oubli est signalée à l'administrateur (badge « a demandé de l'aide ») qui génère un lien « nouveau mot de passe » à transmettre lui-même.
 
 ## 3. Protection des données (RGPD)
 
 - Les pages publiques n'affichent que des coordonnées **professionnelles** : standard, adresse de l'entreprise, e-mail générique. Pas de mobile ni d'e-mail personnel.
 - Les identifiants et e-mails des gestionnaires ne sont **jamais** publics.
 - Les pages ne sont pas indexées par les moteurs de recherche. Le slug des chantiers contient un suffixe aléatoire (ex. `merignac-x7k2`) pour ne pas être devinable.
+- Comptes : lien de réinitialisation à usage unique (1 h par e-mail, 72 h par l'admin), seule son empreinte est stockée ; changer de mot de passe déconnecte les autres sessions (champ `Version`). Champs Airtable ajoutés à `Utilisateurs` : `ResetHash`, `ResetExpire`, `ResetDemande`, `Version`.
 - Renseigner `CONTACT_RGPD` pour offrir un moyen de demander rectification/suppression ; informer les gestionnaires et entreprises de l'affichage de leurs coordonnées.
 - Fin de chantier : décocher « Page publique active » ou supprimer le compte du gestionnaire.

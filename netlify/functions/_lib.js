@@ -106,8 +106,26 @@ async function login(userIn, passIn) {
     return null;
   }
   if (f.Echecs) await at(T_USERS, { method: "PATCH", id: rec.id, body: { fields: { Echecs: 0 } } });
-  return mint({ u: f.Identifiant, r: "manager", s: f.Slug, uid: rec.id });
+  return mint({ u: f.Identifiant, r: "manager", s: f.Slug, uid: rec.id, v: f.Version || 0 });
 }
+
+// ----- E-mails (optionnels) : Brevo. Sans BREVO_API_KEY + MAIL_FROM, les demandes passent par l'administrateur -----
+const siteUrl = () => String(process.env.SITE_URL || process.env.URL || "").replace(/\/+$/, "");
+const mailOn = () => !!(process.env.BREVO_API_KEY && process.env.MAIL_FROM && siteUrl());
+async function sendMail(to, subject, text) {
+  const r = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: { "api-key": process.env.BREVO_API_KEY, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      sender: { email: process.env.MAIL_FROM, name: process.env.MAIL_FROM_NAME || "Groupe Legendre · Panneau de chantier" },
+      to: [{ email: to }], subject, textContent: text,
+    }),
+  });
+  if (!r.ok) throw new Error("Envoi e-mail impossible (" + r.status + ")");
+}
+// Jeton de réinitialisation : seul son sha256 est stocké
+const newToken = () => crypto.randomBytes(24).toString("base64url");
+const isToken = (t) => /^[A-Za-z0-9_-]{20,64}$/.test(String(t || ""));
 
 function auth(event) {
   const h = event.headers.authorization || event.headers.Authorization || "";
@@ -126,6 +144,7 @@ async function checkManager(me) {
     const f = (await at(T_USERS, { id: me.uid })).fields;
     const today = new Date().toISOString().slice(0, 10);
     if (!f.Actif || f.Slug !== me.s || (f.Expire && f.Expire < today)) return false;
+    if ((f.Version || 0) !== (me.v || 0)) return false; // mot de passe changé depuis : session périmée
     const ch = await listAll(T_CHANTIERS, `{Slug}="${esc(me.s)}"`);
     if (!ch.length) return false;
     const fin = ch[0].fields.DateFin;
@@ -140,5 +159,6 @@ async function checkManager(me) {
 
 module.exports = {
   json, at, esc, isSlug, sha256, listAll, users, hashPassword, login, auth, checkManager,
+  siteUrl, mailOn, sendMail, newToken, isToken,
   T_CHANTIERS, T_INTERV, T_USERS, T_INVITES,
 };
