@@ -134,13 +134,34 @@ async function login(userIn, passIn, uidIn) {
 // ----- E-mails (optionnels) : Brevo. Sans BREVO_API_KEY + MAIL_FROM, les demandes passent par l'administrateur -----
 const siteUrl = () => String(process.env.SITE_URL || process.env.URL || "").replace(/\/+$/, "");
 const mailOn = () => !!(process.env.BREVO_API_KEY && process.env.MAIL_FROM && siteUrl());
+// Signature ajoutée à tous les e-mails (texte + HTML). À modifier ici si l'adresse change.
+const SIGN = {
+  lignes: ["Bâtiment G5 - Bassin à Flot n°1", "65 quai Lawton", "33300 BORDEAUX"],
+  tel: "+33 (0)5 24 73 30 25", telLien: "+33524733025",
+  site: "www.groupe-legendre.com", siteLien: "https://www.groupe-legendre.com",
+  logo: "/logo-legendre-construction.png", rouge: "#e62336",
+};
+const h = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+function texteVersHtml(text) {
+  const corps = text.split(/\n{2,}/).map((p) =>
+    "<p style=\"margin:0 0 14px\">" + h(p).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" style="color:${SIGN.rouge}">${u}</a>`).replace(/\n/g, "<br>") + "</p>").join("");
+  const sign = `<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:22px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.45;color:#333">
+<tr><td style="padding-bottom:8px"><img src="${siteUrl()}${SIGN.logo}" width="180" height="49" alt="Legendre Construction" style="display:block;border:0"></td></tr>
+<tr><td>${SIGN.lignes.map(h).join("<br>")}<br>Tél. <a href="tel:${SIGN.telLien}" style="color:#333;text-decoration:none">${h(SIGN.tel)}</a><br>
+<a href="${SIGN.siteLien}" style="color:${SIGN.rouge};font-weight:bold;text-decoration:none">${h(SIGN.site)}</a></td></tr></table>`;
+  return `<!doctype html><html><body style="margin:0;padding:16px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#222">${corps}${sign}</body></html>`;
+}
+const texteSigne = (text) => text + "\n\n--\nLEGENDRE CONSTRUCTION\n" + SIGN.lignes.join("\n") + "\nTél. " + SIGN.tel + "\n" + SIGN.site;
+
 async function sendMail(to, subject, text) {
+  // MAIL_FROM_NAME est un NOM affiché (ex. « Groupe Legendre · Panneau de chantier »), pas une adresse
+  const nom = /@/.test(process.env.MAIL_FROM_NAME || "") ? "" : process.env.MAIL_FROM_NAME;
   const r = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: { "api-key": process.env.BREVO_API_KEY, "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
-      sender: { email: process.env.MAIL_FROM, name: process.env.MAIL_FROM_NAME || "Groupe Legendre · Panneau de chantier" },
-      to: [{ email: to }], subject, textContent: text,
+      sender: { email: process.env.MAIL_FROM, name: nom || "Groupe Legendre · Panneau de chantier" },
+      to: [{ email: to }], subject, textContent: texteSigne(text), htmlContent: texteVersHtml(text),
     }),
   });
   if (!r.ok) {
