@@ -38,6 +38,9 @@ label{font-size:.8rem;color:var(--mut);display:block;margin-bottom:2px}
 input:focus,select:focus,textarea:focus{outline:2px solid #7b1e2b33;border-color:#7b1e2b}
 h2{color:#7b1e2b}
 #chSt{font-size:.85rem;font-weight:600}
+.caView{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px dashed #d8c3c7;border-radius:8px;cursor:pointer;background:#fff;font-weight:600;color:#7b1e2b;min-height:40px}
+.caView:hover,.caView:focus{border-style:solid;outline:none}
+.caView .mut{font-weight:400}
 #chSt.ok{color:#2b8a3e}#chSt.dirty{color:#d9480f}#chSt.bad{color:#c92a2a}#chSt.wait{color:#85857f}
 #flash{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#2a1a1c;color:#fff;padding:10px 18px;border-radius:999px;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:9}
 #flash.on{opacity:.95}
@@ -52,9 +55,11 @@ a{color:#7b1e2b}
 
 <div id="loginV" class="card" style="max-width:360px;margin:60px auto">
   <h2>Connexion</h2>
-  <label>Identifiant</label><input id="u" autocomplete="username" autocapitalize="none">
-  <label style="margin-top:8px">Mot de passe</label><input id="p" type="password" autocomplete="current-password">
+  <label>Identifiant ou e-mail</label><input id="u" autocomplete="username" autocapitalize="none" spellcheck="false">
+  <label style="margin-top:8px">Mot de passe</label><input id="p" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
   <div class="row" style="margin-top:12px"><button class="p" onclick="doLogin()">Se connecter</button></div>
+  <div id="choixWrap" class="hide" style="margin-top:10px"><label>Plusieurs chantiers avec cette adresse : lequel ?</label><select id="choix"></select>
+    <div class="row" style="margin-top:8px"><button class="p" onclick="doLogin($('choix').value)">Continuer</button></div></div>
   <div class="err" id="lerr"></div>
   <div class="row sp small" style="margin-top:4px"><a href="#mdp" onclick="oubli('mdp');return false">Mot de passe oublié ?</a><a href="#id" onclick="oubli('id');return false">Identifiant oublié ?</a></div>
   <div id="oubliMdp" class="hide" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
@@ -88,6 +93,10 @@ a{color:#7b1e2b}
       <div><label>Surface</label><input id="c_surf" placeholder="9 981 m² SDP"></div>
       <div><label>Usage</label><input id="c_usage" placeholder="Établissement de santé"></div>
       <div><label>Adresse</label><input id="c_adr"></div>
+      <div id="caWrap"><label title="Visible par l'admin uniquement : ni le gestionnaire ni la page publique ne le voient">Chiffre d'affaires (€ HT) 🔒</label>
+        <div id="caView" class="caView" tabindex="0" role="button" onclick="editCA()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();editCA()}"><span id="caTxt"></span><span class="mut">✎</span></div>
+        <input id="caEdit" class="hide" inputmode="decimal" autocomplete="off" placeholder="ex. 12 500 000 ou 12,5M — Entrée pour valider" onkeydown="caKey(event)" onblur="caCommit()">
+        <input id="c_ca" type="hidden"><div class="mut small" id="caErr"></div></div>
       <div><label>Image du projet (fichier ou lien https://…)</label>
         <div class="row" style="flex-wrap:nowrap"><input id="c_img" placeholder="https://… ou envoie un fichier" style="flex:1;min-width:0"><button type="button" onclick="pickImg('c_img',1600)">📁 Fichier</button></div>
         <div class="mut small" id="c_img_st"></div></div>
@@ -106,7 +115,7 @@ a{color:#7b1e2b}
     <p class="mut small" style="margin:0 0 10px">Envoie un lien unique à la personne qui complétera les informations. Elle crée elle-même son compte et n'a accès qu'à ce chantier. Le lien est à usage unique.</p>
     <div class="g">
       <div><label>Pour qui ? (ex. Erwan)</label><input id="i_note" maxlength="80"></div>
-      <div><label>E-mail imposé (optionnel, plus sûr)</label><input id="i_mail2" type="email" placeholder="erwan@…"></div>
+      <div><label>E-mail de la personne (recommandé)</label><input id="i_mail2" type="email" placeholder="erwan@…"></div>
       <div><label>Validité du lien</label><select id="i_days"><option value="3">3 jours</option><option value="7" selected>7 jours</option><option value="14">14 jours</option><option value="30">30 jours</option></select></div>
     </div>
     <div class="row" style="margin-top:10px"><button class="p" onclick="createInvite()">Créer le lien d'invitation</button></div>
@@ -189,9 +198,15 @@ async function api(body) {
 const show = (id, v) => $(id).classList.toggle("hide", !v);
 const err = (m) => ($("err").textContent = m || "");
 
-async function doLogin() {
+async function doLogin(uid) {
+  $("lerr").textContent = "";
   try {
-    S = await api({ action: "login", user: $("u").value, pass: $("p").value });
+    const r = await api({ action: "login", user: $("u").value, pass: $("p").value, uid: typeof uid === "string" ? uid : undefined });
+    if (r.choix) {
+      $("choix").innerHTML = r.choix.map((c) => `<option value="${esc(c.uid)}">${esc(c.chantier)}</option>`).join("");
+      show("choixWrap", true); return;
+    }
+    S = r; show("choixWrap", false);
     try { sessionStorage.setItem("s", JSON.stringify(S)); } catch {}
     $("p").value = "";
     start();
@@ -248,12 +263,14 @@ function selectCh() {
 function lockFields(existing) {
   $("c_slug").readOnly = existing || !isAdmin();
   show("actWrap", isAdmin());
+  show("caWrap", isAdmin()); // le CA reste interne : ni gestionnaire, ni page publique
   show("slugWrap", isAdmin()); // le slug est une info technique : masquée pour les gestionnaires
 }
 function fillCh(c) {
   const m = { c_slug: "Slug", c_nom: "Nom", c_surf: "Surface", c_usage: "Usage", c_adr: "Adresse", c_img: "ImageUrl",
-    c_deb: "DateDebut", c_fin: "DateFin", c_join: "LienRejoindre", c_desc: "Description", c_hor: "Horaires" };
-  for (const k in m) $(k).value = c[m[k]] || "";
+    c_deb: "DateDebut", c_fin: "DateFin", c_join: "LienRejoindre", c_desc: "Description", c_hor: "Horaires", c_ca: "CA" };
+  for (const k in m) $(k).value = c[m[k]] ?? "";
+  closeCA(); refreshCA();
   $("c_act").value = c.Actif ? "1" : "0";
 }
 const slugify = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
@@ -276,7 +293,7 @@ async function delCh() {
   catch (e) { err(e.message); }
 }
 // ----- Enregistrement : automatique (1,5 s après la dernière modification) + indicateur d'état -----
-const CH_MAP = { c_slug: "Slug", c_nom: "Nom", c_surf: "Surface", c_usage: "Usage", c_adr: "Adresse", c_img: "ImageUrl",
+const CH_MAP = { c_ca: "CA", c_slug: "Slug", c_nom: "Nom", c_surf: "Surface", c_usage: "Usage", c_adr: "Adresse", c_img: "ImageUrl",
   c_deb: "DateDebut", c_fin: "DateFin", c_join: "LienRejoindre", c_desc: "Description", c_hor: "Horaires" };
 let dirty = false, dirtySince = null, saving = false, autoT = null;
 const hhmm = (d) => d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
@@ -289,9 +306,44 @@ function markDirty() {
     clearTimeout(autoT); autoT = setTimeout(() => saveCh(true), 1500);
   } else setSt("dirty", "● Non enregistré depuis " + hhmm(dirtySince));
 }
-document.addEventListener("input", (e) => { if (e.target.closest && e.target.closest("#chForm") && e.target.id !== "file") markDirty(); });
+document.addEventListener("input", (e) => { if (e.target.closest && e.target.closest("#chForm") && e.target.id !== "file" && e.target.id !== "caEdit") markDirty(); });
 document.addEventListener("change", (e) => { if (e.target.closest && e.target.closest("#chForm") && e.target.tagName === "SELECT") markDirty(); });
 window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+// ----- CA : on clique, on tape, Entrée valide et referme -----
+const fmtCA = (v) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(+v) + " HT";
+function refreshCA() {
+  const v = $("c_ca").value;
+  $("caTxt").textContent = v === "" ? "Cliquer pour saisir" : fmtCA(v);
+  $("caTxt").classList.toggle("mut", v === "");
+}
+function editCA() {
+  const v = $("c_ca").value;
+  $("caEdit").value = v === "" ? "" : new Intl.NumberFormat("fr-FR").format(+v);
+  $("caErr").textContent = "";
+  show("caView", false); show("caEdit", true); $("caEdit").focus(); $("caEdit").select();
+}
+function closeCA() { show("caEdit", false); show("caView", true); $("caErr").textContent = ""; }
+function parseCA(txt) {
+  const t = String(txt).replace(/[\s\u00a0\u202f€]/g, "").replace(/ht$/i, "").replace(",", ".");
+  if (t === "") return "";
+  const m = t.match(/^(\d+(?:\.\d+)?)([kKmM]?)$/);
+  if (!m) return null;
+  const n = Math.round(+m[1] * ({ k: 1e3, K: 1e3, m: 1e6, M: 1e6 }[m[2]] || 1));
+  return n < 1e11 ? String(n) : null;
+}
+function caCommit() {
+  if ($("caEdit").classList.contains("hide")) return;
+  const v = parseCA($("caEdit").value);
+  if (v === null) { $("caErr").textContent = "Montant invalide (ex. 12 500 000 ou 12,5M)"; return; }
+  const changed = v !== $("c_ca").value;
+  $("c_ca").value = v; refreshCA(); closeCA();
+  if (changed) markDirty(); // enregistrement automatique
+}
+function caKey(e) {
+  if (e.key === "Enter") { e.preventDefault(); caCommit(); if (!$("caErr").textContent) $("caView").focus(); }
+  else if (e.key === "Escape") { e.preventDefault(); closeCA(); $("caView").focus(); }
+}
 
 async function saveCh(auto) {
   const target = cur; if (!target) return;
@@ -306,6 +358,7 @@ async function saveCh(auto) {
       surface: vals.c_surf, usage: vals.c_usage, adresse: vals.c_adr, imageUrl: vals.c_img,
       dateDebut: vals.c_deb, dateFin: vals.c_fin, lienRejoindre: vals.c_join,
       description: vals.c_desc, horaires: vals.c_hor, actif,
+      ...(isAdmin() ? { ca: vals.c_ca } : {}),
     });
     if (!target.id) { saving = false; await loadChantiers(isManager() ? undefined : out.fields.Slug); }
     else { for (const k in CH_MAP) target[CH_MAP[k]] = vals[k]; target.Actif = actif; }
@@ -328,7 +381,9 @@ async function createInvite() {
     const d = await api({ action: "createInvite", slug: cur.Slug, note: $("i_note").value, email: $("i_mail2").value, days: $("i_days").value });
     lastInvite = { url: location.origin + "/invitation.html?t=" + d.token, expire: d.expire, note: $("i_note").value.trim() };
     $("inviteUrl").value = lastInvite.url;
-    $("inviteInfo").textContent = "Valable jusqu'au " + fmtDate(d.expire) + ", à usage unique." + ($("i_mail2").value ? " Réservé à " + $("i_mail2").value + "." : "");
+    const mail = $("i_mail2").value.trim();
+    $("inviteInfo").textContent = "Valable jusqu'au " + fmtDate(d.expire) + ", à usage unique." + (mail ? " Réservé à " + mail + ", qui pourra se connecter avec cette adresse." : "") +
+      (d.mailed ? " ✉️ Lien envoyé automatiquement par e-mail à " + mail + "." : d.mailError ? " ⚠ " + d.mailError : mail && !d.mailOn ? " (Envoi automatique désactivé : transmets le lien toi-même.)" : "");
     show("inviteOut", true); $("i_note").value = ""; $("i_mail2").value = "";
     loadAccess();
   } catch (e) { err(e.message); }

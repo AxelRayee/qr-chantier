@@ -22,7 +22,7 @@ exports.handler = async (event) => {
     if (!ch) return json(404, BAD);
 
     if (b.action === "info") {
-      return json(200, { chantier: ch.fields.Nom || f.Slug, emailImpose: !!f.EmailInvite });
+      return json(200, { chantier: ch.fields.Nom || f.Slug, emailImpose: !!f.EmailInvite, email: f.EmailInvite || "" });
     }
 
     if (b.action === "register") {

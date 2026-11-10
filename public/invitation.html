@@ -45,6 +45,7 @@ button:disabled{opacity:.5;cursor:default}
     <input id="id" autocomplete="username" autocapitalize="none" spellcheck="false">
     <label>Adresse e-mail professionnelle</label>
     <input id="em" type="email" autocomplete="email">
+    <div class="mut" id="emNote"></div>
     <label>Mot de passe (12 caractères minimum)</label>
     <input id="pw" type="password" autocomplete="new-password">
     <label>Confirmer le mot de passe</label>
@@ -59,11 +60,13 @@ button:disabled{opacity:.5;cursor:default}
   <div id="login" class="card hide">
     <h1>Bienvenue</h1>
     <p id="loginMsg">Connecte-toi pour compléter les informations de ton chantier.</p>
-    <label>Identifiant</label>
+    <label>Identifiant ou e-mail</label>
     <input id="lu" autocomplete="username" autocapitalize="none" spellcheck="false">
     <label>Mot de passe</label>
     <input id="lp" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
     <button id="lgo" onclick="doLogin()">Se connecter</button>
+    <div id="choixWrap" class="hide"><label>Plusieurs chantiers avec cette adresse : lequel ?</label><select id="choix" style="font:inherit;padding:10px;border-radius:8px;border:1px solid var(--line);width:100%"></select>
+      <button onclick="doLogin($('choix').value)">Continuer</button></div>
     <div class="err" id="lerr"></div>
     <div class="links"><a href="/admin.html#mdp">Mot de passe oublié ?</a><a href="/admin.html#id">Identifiant oublié ?</a></div>
   </div>
@@ -86,14 +89,18 @@ function showLogin(v) {
   show("form", !v && inviteOk); show("swLogin", !v && inviteOk);
   show("login", v); show("swForm", v && inviteOk);
 }
-async function loginAs(user, pass) {
-  const S = await post("admin", { action: "login", user, pass });
+async function loginAs(user, pass, uid) {
+  const S = await post("admin", { action: "login", user, pass, uid });
+  if (S.choix) {
+    $("choix").innerHTML = S.choix.map((c) => { const o = document.createElement("option"); o.value = c.uid; o.textContent = c.chantier; return o.outerHTML; }).join("");
+    show("choixWrap", true); $("lgo").disabled = false; return;
+  }
   try { sessionStorage.setItem("s", JSON.stringify(S)); } catch {}
   location.href = "/admin.html";
 }
-async function doLogin() {
+async function doLogin(uid) {
   $("lerr").textContent = ""; $("lgo").disabled = true;
-  try { await loginAs($("lu").value, $("lp").value); }
+  try { await loginAs($("lu").value, $("lp").value, typeof uid === "string" ? uid : undefined); }
   catch (e) { $("lerr").textContent = e.message; $("lgo").disabled = false; }
 }
 
@@ -102,6 +109,7 @@ async function doLogin() {
   try {
     const d = await post("invitation", { t: T, action: "info" });
     $("ch").textContent = d.chantier; inviteOk = true;
+    if (d.email) { $("em").value = d.email; $("em").readOnly = true; $("emNote").textContent = "Adresse définie par l'administrateur : tu pourras te connecter avec elle."; }
     show("load", false); showLogin(false);
   } catch {
     show("load", false);

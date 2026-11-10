@@ -5,7 +5,7 @@
 const crypto = require("crypto");
 const { connectLambda, getStore } = require("@netlify/blobs");
 const {
-  json, at, esc, isSlug, sha256, listAll, login, auth, checkManager, newToken,
+  json, at, esc, isSlug, sha256, listAll, login, auth, checkManager, newToken, mailOn, sendMail, siteUrl,
   T_CHANTIERS, T_INTERV, T_USERS, T_INVITES,
 } = require("./_lib");
 
@@ -31,6 +31,13 @@ const chFields = (b) => ({
   DateDebut: isDate(b.dateDebut) ? b.dateDebut : null,
   DateFin: isDate(b.dateFin) ? b.dateFin : null,
 });
+// CA (€ HT) : donnée interne, réservée à l'admin, jamais publiée
+const caVal = (v) => {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = Math.round(+String(v).replace(/[\s\u00a0\u202f€]/g, "").replace(",", "."));
+  return Number.isFinite(n) && n >= 0 && n < 1e11 ? n : null;
+};
+const sansCA = ({ CA, ...f }) => f;
 const ivFields = (b, slug) => ({
   Slug: slug, Entreprise: clean(b.entreprise), Groupe: clean(b.groupe), Role: clean(b.role),
   Adresse: clean(b.adresse), Telephone: clean(b.telephone, 30), Email: clean(b.email),
@@ -46,7 +53,8 @@ exports.handler = async (event) => {
   try {
     if (b.action === "login") {
       await new Promise((r) => setTimeout(r, 400));
-      const s = await login(b.user, b.pass);
+      const s = await login(b.user, b.pass, b.uid);
+      if (s && s.choix) return json(200, { choix: s.choix }); // même e-mail sur plusieurs chantiers : choisir
       return s ? json(200, s) : json(401, { error: "Identifiants incorrects, ou compte désactivé / verrouillé 15 min" });
     }
 
@@ -63,7 +71,7 @@ exports.handler = async (event) => {
     switch (b.action) {
       case "listChantiers": {
         const r = await listAll(T_CHANTIERS, isManager ? `{Slug}="${esc(me.s)}"` : undefined);
-        return json(200, r.map((x) => ({ id: x.id, ...x.fields })));
+        return json(200, r.map((x) => ({ id: x.id, ...(isAdmin ? x.fields : sansCA(x.fields)) })));
       }
 
       case "saveChantier": {
@@ -72,11 +80,12 @@ exports.handler = async (event) => {
           if (!r) return json(404, { error: "Chantier introuvable" });
           // le gestionnaire ne peut changer ni le slug ni l'état Actif
           const out = await at(T_CHANTIERS, { method: "PATCH", id: r.id, body: { fields: chFields(b) } });
-          return json(200, out);
+          return json(200, { id: out.id, fields: sansCA(out.fields || {}) });
         }
         if (!isAdmin) return json(403, { error: "Réservé admin" });
         if (!isSlug(b.slug)) return json(400, { error: "Slug invalide (a-z, 0-9, tirets)" });
         const fields = { ...chFields(b), Slug: b.slug, Actif: !!b.actif };
+        if ("ca" in b) fields.CA = caVal(b.ca);
         const out = b.id
           ? await at(T_CHANTIERS, { method: "PATCH", id: b.id, body: { fields } })
           : await at(T_CHANTIERS, { method: "POST", body: { fields } });
@@ -147,7 +156,20 @@ exports.handler = async (event) => {
         };
         if (email) fields.EmailInvite = email;
         await at(T_INVITES, { method: "POST", body: { fields } });
-        return json(200, { token, expire });
+        // E-mail imposé + Brevo configuré : on envoie directement le lien à la personne
+        let mailed = false, mailError = "";
+        if (email && mailOn() && b.sendMail !== false) {
+          const nom = ch[0].fields.Nom || b.slug, fin = new Date(expire).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" });
+          try {
+            await sendMail(email, "Ton accès au panneau de chantier · " + nom,
+              `Bonjour,\n\nTu es invité(e) à compléter les informations du chantier « ${nom} » sur le panneau de chantier Groupe Legendre.\n\n` +
+              `Crée ton accès ici (lien personnel, à usage unique, valable jusqu'au ${fin}) :\n${siteUrl()}/invitation.html?t=${token}\n\n` +
+              `Tu pourras ensuite te connecter avec cette adresse e-mail (${email}) et ton mot de passe sur ${siteUrl()}/admin.html\n\n` +
+              `Si tu n'attendais pas ce message, ignore-le.`);
+            mailed = true;
+          } catch (e) { console.error(e); mailError = "Le lien n'a pas pu être envoyé par e-mail : transmets-le toi-même."; }
+        }
+        return json(200, { token, expire, mailed, mailError, mailOn: mailOn() });
       }
 
       case "listInvites": {

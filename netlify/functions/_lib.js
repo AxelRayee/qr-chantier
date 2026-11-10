@@ -83,29 +83,51 @@ function mint(p) {
   return { token: `${payload}.${sign(payload)}`, role: p.r, user: p.u, slug: p.s || null };
 }
 
-async function login(userIn, passIn) {
+// Connexion par identifiant OU par e-mail. Un même e-mail peut avoir un compte par chantier :
+// si plusieurs comptes acceptent le mot de passe, on renvoie la liste des chantiers à choisir (uid).
+async function login(userIn, passIn, uidIn) {
   if (!SECRET) return null;
-  const user = String(userIn || "").trim().toLowerCase().slice(0, 60);
+  const user = String(userIn || "").trim().toLowerCase().slice(0, 120);
   const pass = String(passIn || "").slice(0, 200);
   if (!user) return null;
 
   const env = users()[user];
   if (env) return safeEq(env.pass, pass) ? mint({ u: user, r: env.role || "editor" }) : null;
 
-  // Compte gestionnaire (Airtable) : 5 échecs => verrouillage 15 min
-  const rec = (await listAll(T_USERS, `LOWER({Identifiant})="${esc(user)}"`))[0];
-  if (!rec) { await scrypt(pass, DUMMY_SALT, 64); return null; }
-  const f = rec.fields;
-  if (!f.Actif || (f.VerrouJusqua || 0) > Date.now()) { await scrypt(pass, DUMMY_SALT, 64); return null; }
-  if (!(await verifyPassword(pass, f.Sel, f.Hash))) {
-    const n = (f.Echecs || 0) + 1;
-    await at(T_USERS, {
-      method: "PATCH", id: rec.id,
-      body: { fields: n >= 5 ? { Echecs: 0, VerrouJusqua: Date.now() + 15 * 60e3 } : { Echecs: n } },
-    });
-    return null;
+  // Comptes gestionnaires (Airtable) : 5 échecs => verrouillage 15 min
+  const parMail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(user);
+  const recs = (await listAll(T_USERS, parMail ? `LOWER({Email})="${esc(user)}"` : `LOWER({Identifiant})="${esc(user)}"`))
+    .filter((r) => r.fields.Role === "manager").slice(0, 10);
+  const ok = [];
+  for (const rec of recs) {
+    const f = rec.fields;
+    if (!f.Actif || (f.VerrouJusqua || 0) > Date.now()) continue;
+    if (await verifyPassword(pass, f.Sel, f.Hash)) {
+      ok.push(rec);
+      if (f.Echecs) await at(T_USERS, { method: "PATCH", id: rec.id, body: { fields: { Echecs: 0 } } });
+    } else {
+      const n = (f.Echecs || 0) + 1;
+      await at(T_USERS, {
+        method: "PATCH", id: rec.id,
+        body: { fields: n >= 5 ? { Echecs: 0, VerrouJusqua: Date.now() + 15 * 60e3 } : { Echecs: n } },
+      });
+    }
   }
-  if (f.Echecs) await at(T_USERS, { method: "PATCH", id: rec.id, body: { fields: { Echecs: 0 } } });
+  if (!recs.length) await scrypt(pass, DUMMY_SALT, 64); // même temps de réponse qu'un compte existant
+  if (!ok.length) return null;
+  let rec = ok[0];
+  if (ok.length > 1) {
+    rec = ok.find((r) => r.id === uidIn);
+    if (!rec) {
+      const choix = [];
+      for (const r of ok) {
+        const ch = (await listAll(T_CHANTIERS, `{Slug}="${esc(r.fields.Slug)}"`))[0];
+        choix.push({ uid: r.id, chantier: (ch && ch.fields.Nom) || r.fields.Slug });
+      }
+      return { choix };
+    }
+  }
+  const f = rec.fields;
   return mint({ u: f.Identifiant, r: "manager", s: f.Slug, uid: rec.id, v: f.Version || 0 });
 }
 
