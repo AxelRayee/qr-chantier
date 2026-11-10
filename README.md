@@ -36,6 +36,7 @@ Token Airtable : airtable.com/create/tokens → `data.records:read` + `data.reco
 - Connexion des gestionnaires par identifiant **ou** e-mail (si un même e-mail a plusieurs chantiers, on choisit le chantier). Avec Brevo actif, une invitation créée avec un e-mail est envoyée automatiquement.
 - Champ `CA` (Chantiers, devise €) : chiffre d'affaires € HT, visible et modifiable par l'admin uniquement, jamais publié.
 - `BREVO_API_KEY` + `MAIL_FROM` (optionnels) : envoi automatique des e-mails « mot de passe oublié » / « identifiant oublié » via Brevo. `MAIL_FROM` doit être une adresse expéditrice validée dans Brevo. `MAIL_FROM_NAME` (optionnel) : nom de l'expéditeur. `SITE_URL` (optionnel) : adresse du site dans les liens envoyés (sinon la variable `URL` fournie par Netlify).
+  `ALERT_EMAIL` (optionnel) : destinataire du bilan mensuel (sinon `MAIL_FROM`). La fonction planifiée `veille` envoie ce bilan le 1er de chaque mois : elle garde la clé Brevo active (Brevo supprime une clé inutilisée 90 jours). Bouton admin « ✉️ Tester l'e-mail » pour vérifier l'envoi à tout moment.
   Sans ces variables, une demande d'oubli est signalée à l'administrateur (badge « a demandé de l'aide ») qui génère un lien « nouveau mot de passe » à transmettre lui-même.
 
 ## 3. Protection des données (RGPD)

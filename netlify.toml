@@ -5,6 +5,10 @@
 [functions]
   node_bundler = "esbuild"
 
+# Le 1er de chaque mois à 7 h (UTC) : bilan par e-mail, qui garde aussi la clé Brevo active
+[functions."veille"]
+  schedule = "0 7 1 * *"
+
 # /img/<slug>/<id>.jpg -> image envoyée depuis l'admin
 [[redirects]]
   from = "/img/*"

@@ -82,6 +82,7 @@ a{color:#7b1e2b}
     <div class="row">
       <select id="chSel" onchange="selectCh()" style="flex:1"></select>
       <button id="newChBtn" class="hide" onclick="newCh()">+ Nouveau chantier</button>
+      <button id="mailBtn" class="hide" onclick="testMail()" title="Envoie maintenant le bilan mensuel : vérifie que Brevo fonctionne">✉️ Tester l'e-mail</button>
     </div>
   </div>
 
@@ -235,7 +236,7 @@ function logout() { try { sessionStorage.removeItem("s"); } catch {} S = null; s
 
 async function start() {
   show("loginV", false); show("appV", true);
-  show("newChBtn", isAdmin());
+  show("newChBtn", isAdmin()); show("mailBtn", isAdmin());
   show("chooser", !isManager());
   $("title").textContent = isManager() ? "Mon chantier" : "Chantiers";
   await loadChantiers(isManager() ? undefined : undefined);
@@ -417,6 +418,11 @@ async function loadAccess() {
       ${open ? `<button class="d" onclick="revoke('${i.id}')">Annuler le lien</button>` : ""}</div>`;
     }).join("") || '<div class="mut">Aucune invitation.</div>';
   } catch (e) { err(e.message); }
+}
+async function testMail() {
+  err();
+  try { const d = await api({ action: "testMail" }); flash("✔ E-mail de test envoyé à " + d.to); }
+  catch (e) { err(e.message); }
 }
 async function resetLink(id) {
   try {

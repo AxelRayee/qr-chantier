@@ -22,7 +22,7 @@ const isDate = (s) => { // date réelle au format AAAA-MM-JJ
   const d = new Date(s + "T00:00:00Z");
   return !isNaN(d) && d.toISOString().slice(0, 10) === s;
 };
-const ADMIN_ONLY = new Set(["createInvite", "listInvites", "revokeInvite", "listUsers", "setUserActif", "deleteUser", "deleteChantier", "resetLink"]);
+const ADMIN_ONLY = new Set(["createInvite", "listInvites", "revokeInvite", "listUsers", "setUserActif", "deleteUser", "deleteChantier", "resetLink", "testMail"]);
 
 const chFields = (b) => ({
   Nom: clean(b.nom), Adresse: clean(b.adresse), Surface: clean(b.surface, 60), Usage: clean(b.usage, 120),
@@ -211,6 +211,13 @@ exports.handler = async (event) => {
         const token = newToken();
         await at(T_USERS, { method: "PATCH", id: b.id, body: { fields: { ResetHash: sha256(token), ResetExpire: Date.now() + 72 * 3600e3 } } });
         return json(200, { token, identifiant: u.fields.Identifiant, email: u.fields.Email || "" });
+      }
+
+      // ----- Admin : envoie tout de suite le bilan mensuel (teste Brevo et remet à zéro le compteur d'inactivité) -----
+      case "testMail": {
+        if (!mailOn()) return json(400, { error: "E-mails non configurés : ajoute BREVO_API_KEY, MAIL_FROM et SITE_URL dans Netlify, puis redéploie." });
+        try { return json(200, { to: await require("./veille").envoyer("Test d'envoi · Panneau de chantier") }); }
+        catch (e) { console.error(e); return json(502, { error: "Brevo a refusé l'envoi (" + String(e.message || e).slice(0, 120) + "). Vérifie la clé, l'expéditeur validé et les IP autorisées." }); }
       }
 
       case "deleteUser": {

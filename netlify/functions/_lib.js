@@ -143,7 +143,10 @@ async function sendMail(to, subject, text) {
       to: [{ email: to }], subject, textContent: text,
     }),
   });
-  if (!r.ok) throw new Error("Envoi e-mail impossible (" + r.status + ")");
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error("Brevo " + r.status + (d.message ? " : " + String(d.message).slice(0, 150) : ""));
+  }
 }
 // Jeton de réinitialisation : seul son sha256 est stocké
 const newToken = () => crypto.randomBytes(24).toString("base64url");
